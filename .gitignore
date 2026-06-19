@@ -1,0 +1,15 @@
+# dependências
+node_modules/
+
+# builds
+.next/
+dist/
+
+# variáveis de ambiente (NUNCA subir para o git)
+.env
+.env.local
+.env.production
+
+# sistema operacional
+.DS_Store
+Thumbs.db
