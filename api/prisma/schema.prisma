@@ -16,3 +16,54 @@ datasource db {
   url      = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
+
+enum OrderStatus {
+  PENDENTE
+  EM_SEPARACAO
+  AGUARDANDO_ENVIO
+  ENVIADO
+  ENTREGUE
+}
+
+model Branch {
+  id           String   @id @default(cuid())
+  name         String
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  orders       Order[]
+}
+
+model Admin {
+  id           String @id @default(cuid())
+  username     String @unique
+  passwordHash String
+}
+
+model Item {
+  id         String      @id @default(cuid())
+  name       String
+  unit       String
+  active     Boolean     @default(true)
+  orderItems OrderItem[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  branchId    String
+  status      OrderStatus @default(PENDENTE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deliveredAt DateTime?
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id       String @id @default(cuid())
+  order    Order  @relation(fields: [orderId], references: [id])
+  orderId  String
+  item     Item   @relation(fields: [itemId], references: [id])
+  itemId   String
+  quantity Int
+}
