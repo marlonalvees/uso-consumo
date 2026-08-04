@@ -2,7 +2,6 @@
 node_modules/
 
 # builds
-.next/
 dist/
 
 # variáveis de ambiente (NUNCA subir para o git)
@@ -13,3 +12,6 @@ dist/
 # sistema operacional
 .DS_Store
 Thumbs.db
+
+# guia de estudos pessoal (não faz parte do código do projeto)
+GUIA-ESTUDO.md
