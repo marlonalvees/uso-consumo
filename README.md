@@ -39,14 +39,13 @@ npm run dev             # http://localhost:5173
 
 ## Login de teste (dados do seed)
 
-| Perfil | Usuário                 | Senha       |
-| ------ | ------------------------ | ----------- |
-| Admin  | `admin`                  | `admin123`  |
-| Filial | `filial-matriz-prado`    | `filial123` |
-| Filial | `filial-centro`          | `filial123` |
-| Filial | `filial-olaria`          | `filial123` |
-| Filial | `filial-teresopolis`     | `filial123` |
-| Filial | `filial-ecommerce`       | `filial123` |
+Os usuários e senhas reais ficam definidos em `api/prisma/seed.ts` (não
+neste README). Formato:
+
+| Perfil | Usuário            | Senha        |
+| ------ | ------------------ | ------------ |
+| Admin  | `<usuario-admin>`  | `<senha>`    |
+| Filial | `filial-<nome>`    | `<senha>`    |
 
 ## Estágios do pedido
 
