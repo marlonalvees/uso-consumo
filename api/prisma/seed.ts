@@ -21,6 +21,7 @@ async function main() {
     { name: 'Cloro', unit: 'litro' },
     { name: 'Espanador', unit: 'unidade' },
   ];
+
   for (const item of items) {
     await prisma.item.create({ data: item });
   }

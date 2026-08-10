@@ -4,6 +4,7 @@ dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import { prisma } from './lib/prisma';
+import authRoutes from './routes/auth.routes';
 
 const app = express();
 const PORT = 3001;
@@ -15,6 +16,8 @@ app.get('/health', async (_req, res) => {
   const branchCount = await prisma.branch.count();
   res.json({ status: 'ok', branches: branchCount });
 });
+
+app.use('/api/auth', authRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
