@@ -6,10 +6,13 @@ export interface AuthUser {
   name: string
 }
 
+export type ItemCategory = 'PAPELARIA' | 'LIMPEZA'
+
 export interface Item {
   id: string
   name: string
   unit: string
+  category: ItemCategory
   active: boolean
 }
 
@@ -27,6 +30,12 @@ export interface OrderItem {
   item: Item
 }
 
+export interface OrderExtraItem {
+  id: string
+  name: string
+  quantity: number
+}
+
 export interface Order {
   id: string
   branchId: string
@@ -36,4 +45,5 @@ export interface Order {
   deliveredAt: string | null
   branch: { id: string; name: string }
   items: OrderItem[]
+  extraItems: OrderExtraItem[]
 }

@@ -61,16 +61,20 @@ export default function Dashboard() {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {orders.map((order) => {
-                const totalQty = order.items.reduce((sum, i) => sum + i.quantity, 0)
+                const totalQty =
+                  order.items.reduce((sum, i) => sum + i.quantity, 0) +
+                  order.extraItems.reduce((sum, i) => sum + i.quantity, 0)
+                const itemsLabel = [
+                  ...order.items.map((i) => `${i.quantity}x ${i.item.name}`),
+                  ...order.extraItems.map((i) => `${i.quantity}x ${i.name} (extra)`),
+                ].join(', ')
                 return (
                   <tr key={order.id}>
                     <td className="px-4 py-3 font-medium text-gray-900">{order.branch.name}</td>
                     <td className="whitespace-nowrap px-4 py-3 text-gray-600">
                       {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {order.items.map((i) => `${i.quantity}x ${i.item.name}`).join(', ')}
-                    </td>
+                    <td className="px-4 py-3 text-gray-600">{itemsLabel}</td>
                     <td className="px-4 py-3 text-gray-600">{totalQty}</td>
                     <td className="px-4 py-3">
                       {order.status === 'ENTREGUE' ? (
