@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import type { Order, OrderStatus } from '../types'
 import { STATUS_LABELS, STATUS_STYLES } from '../lib/orderStatus'
+import OrderPrintSheet from '../components/OrderPrintSheet'
+import { usePrintOrder } from '../hooks/usePrintOrder'
 
 const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
   'PENDENTE',
@@ -15,6 +17,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const { printingOrder, printOrder } = usePrintOrder()
 
   useEffect(() => {
     api
@@ -43,11 +46,12 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-gray-900">Dashboard</h1>
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {orders.length === 0 ? (
-        <p className="text-gray-500">Nenhum pedido ainda.</p>
-      ) : (
+      <div className="print:hidden">
+        <h1 className="mb-4 text-2xl font-semibold text-gray-900">Dashboard</h1>
+        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+        {orders.length === 0 ? (
+          <p className="text-gray-500">Nenhum pedido ainda.</p>
+        ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -57,6 +61,7 @@ export default function Dashboard() {
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Itens</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Qtd. total</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Estágio</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -100,6 +105,15 @@ export default function Dashboard() {
                         </select>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => printOrder(order)}
+                        className="rounded-lg border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Imprimir
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -107,6 +121,11 @@ export default function Dashboard() {
           </table>
         </div>
       )}
+      </div>
+
+      <div className="hidden print:block">
+        {printingOrder && <OrderPrintSheet order={printingOrder} />}
+      </div>
     </div>
   )
 }

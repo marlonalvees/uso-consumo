@@ -10,7 +10,10 @@ export default function Layout() {
 
   const links =
     user?.role === 'ADMIN'
-      ? [{ to: '/dashboard', label: 'Dashboard', badge: 0 }]
+      ? [
+          { to: '/dashboard', label: 'Dashboard', badge: 0 },
+          { to: '/produtos', label: 'Produtos', badge: 0 },
+        ]
       : [
           { to: '/pedidos/novo', label: 'Novo pedido', badge: 0 },
           { to: '/pedidos', label: 'Meus pedidos', badge: pendingCount },
@@ -23,7 +26,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-gray-200">
+      <header className="border-b border-gray-200 print:hidden">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
             <Logo className="text-xl" />
@@ -64,10 +67,10 @@ export default function Layout() {
           ))}
         </nav>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 print:max-w-none print:p-0">
         <Outlet />
       </main>
-      <footer className="border-t border-gray-200 px-4 py-4 text-center text-xs text-gray-500">
+      <footer className="border-t border-gray-200 px-4 py-4 text-center text-xs text-gray-500 print:hidden">
         <a
           href="https://www.marlonalves.dev/"
           target="_blank"

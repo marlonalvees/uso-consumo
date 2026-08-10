@@ -3,15 +3,18 @@ import { api, ApiError } from '../lib/api';
 import type { Order } from '../types';
 import { usePendingOrders } from '../context/PendingOrdersContext';
 import OrderStatusTimeline from '../components/OrderStatusTimeline';
+import OrderPrintSheet from '../components/OrderPrintSheet';
+import { usePrintOrder } from '../hooks/usePrintOrder';
 
 interface OrderCardProps {
   order: Order;
   highlighted?: boolean;
   confirmingId: string | null;
   onConfirm: (orderId: string) => void;
+  onPrint: (order: Order) => void;
 }
 
-function OrderCard({ order, highlighted, confirmingId, onConfirm }: OrderCardProps) {
+function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint }: OrderCardProps) {
   return (
     <li
       className={`rounded-xl border p-4 ${
@@ -49,16 +52,25 @@ function OrderCard({ order, highlighted, confirmingId, onConfirm }: OrderCardPro
           </li>
         ))}
       </ul>
-      {order.status === 'ENVIADO' && (
+      <div className="flex flex-wrap items-center gap-2">
+        {order.status === 'ENVIADO' && (
+          <button
+            type="button"
+            onClick={() => onConfirm(order.id)}
+            disabled={confirmingId === order.id}
+            className="rounded-lg bg-novamix-teal px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
+          >
+            {confirmingId === order.id ? 'Confirmando...' : 'Confirmar recebimento'}
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => onConfirm(order.id)}
-          disabled={confirmingId === order.id}
-          className="w-full rounded-lg bg-novamix-teal px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60 sm:w-auto"
+          onClick={() => onPrint(order)}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
         >
-          {confirmingId === order.id ? 'Confirmando...' : 'Confirmar recebimento'}
+          Imprimir
         </button>
-      )}
+      </div>
     </li>
   );
 }
@@ -96,6 +108,7 @@ export default function MeusPedidos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const { printingOrder, printOrder } = usePrintOrder();
 
   useEffect(() => {
     api
@@ -135,60 +148,68 @@ export default function MeusPedidos() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-gray-900">
-        Meus pedidos
-      </h1>
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {orders.length === 0 && (
-        <p className="text-gray-500">Nenhum pedido feito ainda.</p>
-      )}
+      <div className="print:hidden">
+        <h1 className="mb-4 text-2xl font-semibold text-gray-900">
+          Meus pedidos
+        </h1>
+        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+        {orders.length === 0 && (
+          <p className="text-gray-500">Nenhum pedido feito ainda.</p>
+        )}
 
-      {awaitingConfirmation.length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-novamix-orange-dark">
-            Aguardando confirmação
-            <span className="rounded-full bg-novamix-orange/15 px-2 py-0.5 text-xs font-medium text-novamix-orange-dark">
-              {awaitingConfirmation.length}
-            </span>
-          </h2>
-          <ul className="space-y-4">
-            {awaitingConfirmation.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                highlighted
-                confirmingId={confirmingId}
-                onConfirm={handleConfirm}
-              />
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="space-y-4">
-        {monthGroups.map((group, index) => (
-          <details key={group.key} className="group" open={index === 0}>
-            <summary className="mb-3 flex cursor-pointer list-none items-center gap-2 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
-              <span className="transition-transform group-open:rotate-90">
-                ▸
+        {awaitingConfirmation.length > 0 && (
+          <div className="mb-6">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-novamix-orange-dark">
+              Aguardando confirmação
+              <span className="rounded-full bg-novamix-orange/15 px-2 py-0.5 text-xs font-medium text-novamix-orange-dark">
+                {awaitingConfirmation.length}
               </span>
-              {group.label}
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                {group.orders.length}
-              </span>
-            </summary>
+            </h2>
             <ul className="space-y-4">
-              {group.orders.map((order) => (
+              {awaitingConfirmation.map((order) => (
                 <OrderCard
                   key={order.id}
                   order={order}
+                  highlighted
                   confirmingId={confirmingId}
                   onConfirm={handleConfirm}
+                  onPrint={printOrder}
                 />
               ))}
             </ul>
-          </details>
-        ))}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {monthGroups.map((group, index) => (
+            <details key={group.key} className="group" open={index === 0}>
+              <summary className="mb-3 flex cursor-pointer list-none items-center gap-2 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
+                <span className="transition-transform group-open:rotate-90">
+                  ▸
+                </span>
+                {group.label}
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                  {group.orders.length}
+                </span>
+              </summary>
+              <ul className="space-y-4">
+                {group.orders.map((order) => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    confirmingId={confirmingId}
+                    onConfirm={handleConfirm}
+                    onPrint={printOrder}
+                  />
+                ))}
+              </ul>
+            </details>
+          ))}
+        </div>
+      </div>
+
+      <div className="hidden print:block">
+        {printingOrder && <OrderPrintSheet order={printingOrder} />}
       </div>
     </div>
   );
