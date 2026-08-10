@@ -7,6 +7,7 @@ const BRANCHES = [
   { name: 'Centro', username: 'filial-centro' },
   { name: 'Olaria', username: 'filial-olaria' },
   { name: 'Teresópolis', username: 'filial-teresopolis' },
+  { name: 'Ecommerce', username: 'filial-ecommerce' },
 ]
 
 async function main() {

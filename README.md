@@ -46,6 +46,7 @@ npm run dev             # http://localhost:5173
 | Filial | `filial-centro`          | `filial123` |
 | Filial | `filial-olaria`          | `filial123` |
 | Filial | `filial-teresopolis`     | `filial123` |
+| Filial | `filial-ecommerce`       | `filial123` |
 
 ## Estágios do pedido
 
