@@ -1,5 +1,53 @@
+# Uso e Consumo
+
 Sistema interno para as filiais pedirem itens de uso e consumo (papel A4,
 cloro, espanador etc. — lista fictícia por enquanto). Cada filial tem um
 login próprio de supervisor e faz pedidos pelo celular; a central acompanha
 tudo em uma dashboard, com o estágio de cada pedido evoluindo de
 **Pendente** até **Entregue** (confirmado pelo próprio supervisor).
+
+## Estrutura
+
+```
+uso-consumo/
+├── web/   → Frontend (React + Vite + TypeScript + Tailwind + React Router)
+└── api/   → Backend  (Node.js + Express + TypeScript + Prisma + Supabase/Postgres)
+```
+
+## Como rodar
+
+### Backend
+
+```bash
+cd api
+cp .env.example .env   # preencha DATABASE_URL/DIRECT_URL (Supabase → aba "Prisma"
+                        # em Connect/Database) e um JWT_SECRET aleatório
+npm install
+npx prisma migrate dev # cria as tabelas no Supabase
+npx prisma db seed     # popula com admin, filial e itens fictícios
+npm run dev            # http://localhost:3001
+```
+
+### Frontend
+
+```bash
+cd web
+cp .env.example .env
+npm install
+npm run dev             # http://localhost:5173
+```
+
+## Login de teste (dados do seed)
+
+| Perfil | Usuário         | Senha       |
+| ------ | --------------- | ----------- |
+| Admin  | `admin`         | `admin123`  |
+| Filial | `filial-centro` | `filial123` |
+
+## Estágios do pedido
+
+`Pendente` → `Em separação` → `Aguardando envio` → `Enviado` → `Entregue`
+
+Os quatro primeiros são avançados pelo admin, no dashboard. O último
+(`Entregue`) só é setado quando o supervisor da filial confirma o
+recebimento na tela "Meus pedidos".
