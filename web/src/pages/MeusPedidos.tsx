@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { api, ApiError } from '../lib/api';
+import { useState } from 'react';
+import { ApiError, api } from '../lib/api';
 import type { Order } from '../types';
-import { usePendingOrders } from '../context/PendingOrdersContext';
+import { useOrders } from '../context/OrdersContext';
 import OrderStatusTimeline from '../components/OrderStatusTimeline';
 import OrderPrintSheet from '../components/OrderPrintSheet';
 import { usePrintOrder } from '../hooks/usePrintOrder';
@@ -110,20 +110,10 @@ interface MeusPedidosProps {
 }
 
 export default function MeusPedidos({ branchId, readOnly = false, hideTitle = false }: MeusPedidosProps = {}) {
-  const { refreshPendingCount } = usePendingOrders();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { orders: allOrders, loadingOrders: loading, updateOrder } = useOrders();
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const { printingOrder, printOrder } = usePrintOrder();
-
-  useEffect(() => {
-    api
-      .get<Order[]>('/orders')
-      .then(setOrders)
-      .catch(() => setError('Não foi possível carregar os pedidos'))
-      .finally(() => setLoading(false));
-  }, []);
 
   async function handleConfirm(orderId: string) {
     setConfirmingId(orderId);
@@ -132,8 +122,7 @@ export default function MeusPedidos({ branchId, readOnly = false, hideTitle = fa
       const updated = await api.patch<Order>(
         `/orders/${orderId}/confirm-delivery`,
       );
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
-      refreshPendingCount();
+      updateOrder(updated);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -149,7 +138,9 @@ export default function MeusPedidos({ branchId, readOnly = false, hideTitle = fa
     return <p className="text-gray-500">Carregando pedidos...</p>;
   }
 
-  const scopedOrders = branchId ? orders.filter((order) => order.branchId === branchId) : orders;
+  const scopedOrders = branchId
+    ? allOrders.filter((order) => order.branchId === branchId)
+    : allOrders;
   const awaitingConfirmation = scopedOrders.filter((order) => order.status === 'ENVIADO');
   const remainingOrders = scopedOrders.filter((order) => order.status !== 'ENVIADO');
   const monthGroups = groupOrdersByMonth(remainingOrders);

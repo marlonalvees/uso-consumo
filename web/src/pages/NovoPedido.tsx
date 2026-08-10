@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import type { Item, ItemCategory, Order } from '../types'
-import { usePendingOrders } from '../context/PendingOrdersContext'
+import type { ItemCategory, Order } from '../types'
+import { useOrders } from '../context/OrdersContext'
+import { useItems } from '../context/ItemsContext'
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   PAPELARIA: 'Produtos Papelaria',
@@ -27,21 +28,12 @@ interface NovoPedidoProps {
 
 export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
   const navigate = useNavigate()
-  const { refreshPendingCount } = usePendingOrders()
-  const [items, setItems] = useState<Item[]>([])
+  const { addOrder } = useOrders()
+  const { items, loadingItems } = useItems()
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([createEmptyExtraRow()])
-  const [loadingItems, setLoadingItems] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    api
-      .get<Item[]>('/items')
-      .then(setItems)
-      .catch(() => setError('Não foi possível carregar os itens'))
-      .finally(() => setLoadingItems(false))
-  }, [])
 
   function updateQuantity(itemId: string, delta: number) {
     setQuantities((prev) => {
@@ -74,11 +66,11 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
     }
     setSubmitting(true)
     try {
-      await api.post<Order>('/orders', {
+      const created = await api.post<Order>('/orders', {
         items: selectedItems.map(([itemId, quantity]) => ({ itemId, quantity })),
         extras: validExtraRows.map((row) => ({ name: row.name.trim(), quantity: row.quantity })),
       })
-      refreshPendingCount()
+      addOrder(created)
       navigate('/pedidos')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível enviar o pedido')

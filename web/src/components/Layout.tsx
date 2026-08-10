@@ -1,11 +1,11 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { usePendingOrders } from '../context/PendingOrdersContext'
+import { useOrders } from '../context/OrdersContext'
 import Logo from './Logo'
 
 export default function Layout() {
   const { user, logout } = useAuth()
-  const { pendingCount } = usePendingOrders()
+  const { pendingCount } = useOrders()
   const navigate = useNavigate()
 
   const links =

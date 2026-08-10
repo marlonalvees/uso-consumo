@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { PendingOrdersProvider } from './context/PendingOrdersContext'
+import { OrdersProvider } from './context/OrdersContext'
+import { ItemsProvider } from './context/ItemsContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -19,27 +20,29 @@ function RoleRedirect() {
 function App() {
   return (
     <AuthProvider>
-      <PendingOrdersProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route element={<ProtectedRoute />}>
-              <Route element={<Layout />}>
-                <Route index element={<RoleRedirect />} />
-                <Route element={<ProtectedRoute roles={['FILIAL']} />}>
-                  <Route path="pedidos/novo" element={<NovoPedido />} />
-                  <Route path="pedidos" element={<MeusPedidos />} />
-                </Route>
-                <Route element={<ProtectedRoute roles={['ADMIN']} />}>
-                  <Route path="dashboard" element={<Dashboard />} />
-                  <Route path="produtos" element={<Produtos />} />
-                  <Route path="filiais" element={<VisaoFilial />} />
+      <OrdersProvider>
+        <ItemsProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route element={<ProtectedRoute />}>
+                <Route element={<Layout />}>
+                  <Route index element={<RoleRedirect />} />
+                  <Route element={<ProtectedRoute roles={['FILIAL']} />}>
+                    <Route path="pedidos/novo" element={<NovoPedido />} />
+                    <Route path="pedidos" element={<MeusPedidos />} />
+                  </Route>
+                  <Route element={<ProtectedRoute roles={['ADMIN']} />}>
+                    <Route path="dashboard" element={<Dashboard />} />
+                    <Route path="produtos" element={<Produtos />} />
+                    <Route path="filiais" element={<VisaoFilial />} />
+                  </Route>
                 </Route>
               </Route>
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </PendingOrdersProvider>
+            </Routes>
+          </BrowserRouter>
+        </ItemsProvider>
+      </OrdersProvider>
     </AuthProvider>
   )
 }
