@@ -39,10 +39,13 @@ npm run dev             # http://localhost:5173
 
 ## Login de teste (dados do seed)
 
-| Perfil | Usuário         | Senha       |
-| ------ | --------------- | ----------- |
-| Admin  | `admin`         | `admin123`  |
-| Filial | `filial-centro` | `filial123` |
+| Perfil | Usuário                 | Senha       |
+| ------ | ------------------------ | ----------- |
+| Admin  | `admin`                  | `admin123`  |
+| Filial | `filial-matriz-prado`    | `filial123` |
+| Filial | `filial-centro`          | `filial123` |
+| Filial | `filial-olaria`          | `filial123` |
+| Filial | `filial-teresopolis`     | `filial123` |
 
 ## Estágios do pedido
 
