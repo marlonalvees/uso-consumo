@@ -27,51 +27,72 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-        <div className="mb-6 flex justify-center">
-          <Logo className="text-4xl" />
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <div className="flex flex-1 items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex justify-center">
+            <Logo className="text-4xl" />
+          </div>
+          <h1 className="mb-1 text-center text-lg font-semibold text-gray-900">Uso e Consumo</h1>
+          <p className="mb-6 text-center text-sm text-gray-500">Entre com seu usuário e senha</p>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="username" className="mb-1 block text-sm font-medium text-gray-700">
+                Usuário
+              </label>
+              <input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
+                Senha
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              />
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-novamix-orange px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-orange-dark disabled:opacity-60"
+            >
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
+          </form>
         </div>
-        <h1 className="mb-1 text-center text-lg font-semibold text-gray-900">Uso e Consumo</h1>
-        <p className="mb-6 text-center text-sm text-gray-500">Entre com seu usuário e senha</p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="mb-1 block text-sm font-medium text-gray-700">
-              Usuário
-            </label>
-            <input
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
-              Senha
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-            />
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-novamix-orange px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-orange-dark disabled:opacity-60"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
       </div>
+      <footer className="px-4 py-4 text-center text-xs text-gray-500">
+        <a
+          href="https://www.marlonalves.dev/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-novamix-teal"
+        >
+          Desenvolvido por Marlon Alves
+        </a>
+        {' · '}
+        <a
+          href="https://www.mthcode.com.br/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-novamix-teal"
+        >
+          MTHCODE
+        </a>
+      </footer>
     </div>
   )
 }

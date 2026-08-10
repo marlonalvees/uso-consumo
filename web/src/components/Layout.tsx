@@ -67,6 +67,25 @@ export default function Layout() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
         <Outlet />
       </main>
+      <footer className="border-t border-gray-200 px-4 py-4 text-center text-xs text-gray-500">
+        <a
+          href="https://www.marlonalves.dev/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-novamix-teal"
+        >
+          Desenvolvido por Marlon Alves
+        </a>
+        {' · '}
+        <a
+          href="https://www.mthcode.com.br/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-novamix-teal"
+        >
+          MTHCODE
+        </a>
+      </footer>
     </div>
   )
 }
