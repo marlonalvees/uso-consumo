@@ -13,6 +13,7 @@ export default function Layout() {
       ? [
           { to: '/dashboard', label: 'Dashboard', badge: 0 },
           { to: '/produtos', label: 'Produtos', badge: 0 },
+          { to: '/filiais', label: 'Visão da filial', badge: 0 },
         ]
       : [
           { to: '/pedidos/novo', label: 'Novo pedido', badge: 0 },

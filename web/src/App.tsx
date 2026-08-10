@@ -8,6 +8,7 @@ import NovoPedido from './pages/NovoPedido'
 import MeusPedidos from './pages/MeusPedidos'
 import Dashboard from './pages/Dashboard'
 import Produtos from './pages/Produtos'
+import VisaoFilial from './pages/VisaoFilial'
 
 function RoleRedirect() {
   const { user } = useAuth()
@@ -32,6 +33,7 @@ function App() {
                 <Route element={<ProtectedRoute roles={['ADMIN']} />}>
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="produtos" element={<Produtos />} />
+                  <Route path="filiais" element={<VisaoFilial />} />
                 </Route>
               </Route>
             </Route>

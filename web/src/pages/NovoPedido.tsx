@@ -21,7 +21,11 @@ function createEmptyExtraRow(): ExtraRow {
   return { id: crypto.randomUUID(), name: '', quantity: 0 }
 }
 
-export default function NovoPedido() {
+interface NovoPedidoProps {
+  readOnly?: boolean
+}
+
+export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
   const navigate = useNavigate()
   const { refreshPendingCount } = usePendingOrders()
   const [items, setItems] = useState<Item[]>([])
@@ -95,7 +99,7 @@ export default function NovoPedido() {
   const totalSelected = selectedItems.length + validExtraRows.length
 
   return (
-    <div className="pb-24">
+    <div className={readOnly ? '' : 'pb-24'}>
       <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>
 
       <div className="space-y-6">
@@ -197,22 +201,24 @@ export default function NovoPedido() {
 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-gray-200 bg-white p-4">
-        <div className="mx-auto max-w-5xl">
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting || totalSelected === 0}
-            className="w-full rounded-lg bg-novamix-orange px-4 py-3 text-sm font-semibold text-white transition hover:bg-novamix-orange-dark disabled:opacity-60"
-          >
-            {submitting
-              ? 'Enviando...'
-              : `Enviar pedido${
-                  totalSelected ? ` (${totalSelected} ${totalSelected === 1 ? 'item' : 'itens'})` : ''
-                }`}
-          </button>
+      {!readOnly && (
+        <div className="fixed inset-x-0 bottom-0 border-t border-gray-200 bg-white p-4">
+          <div className="mx-auto max-w-5xl">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || totalSelected === 0}
+              className="w-full rounded-lg bg-novamix-orange px-4 py-3 text-sm font-semibold text-white transition hover:bg-novamix-orange-dark disabled:opacity-60"
+            >
+              {submitting
+                ? 'Enviando...'
+                : `Enviar pedido${
+                    totalSelected ? ` (${totalSelected} ${totalSelected === 1 ? 'item' : 'itens'})` : ''
+                  }`}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

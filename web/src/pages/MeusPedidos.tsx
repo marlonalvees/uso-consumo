@@ -12,9 +12,10 @@ interface OrderCardProps {
   confirmingId: string | null;
   onConfirm: (orderId: string) => void;
   onPrint: (order: Order) => void;
+  readOnly?: boolean;
 }
 
-function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint }: OrderCardProps) {
+function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, readOnly }: OrderCardProps) {
   return (
     <li
       className={`rounded-xl border p-4 ${
@@ -53,7 +54,7 @@ function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint }: Ord
         ))}
       </ul>
       <div className="flex flex-wrap items-center gap-2">
-        {order.status === 'ENVIADO' && (
+        {!readOnly && order.status === 'ENVIADO' && (
           <button
             type="button"
             onClick={() => onConfirm(order.id)}
@@ -102,7 +103,13 @@ function groupOrdersByMonth(orders: Order[]) {
   return groups;
 }
 
-export default function MeusPedidos() {
+interface MeusPedidosProps {
+  branchId?: string;
+  readOnly?: boolean;
+  hideTitle?: boolean;
+}
+
+export default function MeusPedidos({ branchId, readOnly = false, hideTitle = false }: MeusPedidosProps = {}) {
   const { refreshPendingCount } = usePendingOrders();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,18 +149,21 @@ export default function MeusPedidos() {
     return <p className="text-gray-500">Carregando pedidos...</p>;
   }
 
-  const awaitingConfirmation = orders.filter((order) => order.status === 'ENVIADO');
-  const remainingOrders = orders.filter((order) => order.status !== 'ENVIADO');
+  const scopedOrders = branchId ? orders.filter((order) => order.branchId === branchId) : orders;
+  const awaitingConfirmation = scopedOrders.filter((order) => order.status === 'ENVIADO');
+  const remainingOrders = scopedOrders.filter((order) => order.status !== 'ENVIADO');
   const monthGroups = groupOrdersByMonth(remainingOrders);
 
   return (
     <div>
       <div className="print:hidden">
-        <h1 className="mb-4 text-2xl font-semibold text-gray-900">
-          Meus pedidos
-        </h1>
+        {!hideTitle && (
+          <h1 className="mb-4 text-2xl font-semibold text-gray-900">
+            Meus pedidos
+          </h1>
+        )}
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-        {orders.length === 0 && (
+        {scopedOrders.length === 0 && (
           <p className="text-gray-500">Nenhum pedido feito ainda.</p>
         )}
 
@@ -174,6 +184,7 @@ export default function MeusPedidos() {
                   confirmingId={confirmingId}
                   onConfirm={handleConfirm}
                   onPrint={printOrder}
+                  readOnly={readOnly}
                 />
               ))}
             </ul>
@@ -200,6 +211,7 @@ export default function MeusPedidos() {
                     confirmingId={confirmingId}
                     onConfirm={handleConfirm}
                     onPrint={printOrder}
+                    readOnly={readOnly}
                   />
                 ))}
               </ul>

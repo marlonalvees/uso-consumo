@@ -6,6 +6,11 @@ export interface AuthUser {
   name: string
 }
 
+export interface Branch {
+  id: string
+  name: string
+}
+
 export type ItemCategory = 'PAPELARIA' | 'LIMPEZA'
 
 export interface Item {
