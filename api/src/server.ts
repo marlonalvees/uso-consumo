@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import { prisma } from './lib/prisma';
 import authRoutes from './routes/auth.routes';
+import itemsRoutes from './routes/items.routes';
 
 const app = express();
 const PORT = 3001;
@@ -18,6 +19,7 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/items', itemsRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
