@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@theme {
+  --color-novamix-orange: #f0862f;
+  --color-novamix-orange-dark: #d9701d;
+  --color-novamix-teal: #0f6f63;
+  --color-novamix-teal-dark: #0b5a50;
+}
