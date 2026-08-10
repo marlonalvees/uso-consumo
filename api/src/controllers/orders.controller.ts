@@ -5,6 +5,7 @@ import { OrderStatus } from '../generated/prisma/client'
 const ORDER_INCLUDE = {
   branch: { select: { id: true, name: true } },
   items: { include: { item: true } },
+  extraItems: true,
 } as const
 
 const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
@@ -16,33 +17,56 @@ const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
 
 export async function createOrder(req: Request, res: Response) {
   const branchId = req.auth!.id
-  const { items } = req.body as { items?: { itemId?: string; quantity?: number }[] }
+  const { items, extras } = req.body as {
+    items?: { itemId?: string; quantity?: number }[]
+    extras?: { name?: string; quantity?: number }[]
+  }
 
-  if (!Array.isArray(items) || items.length === 0) {
+  const hasItems = Array.isArray(items) && items.length > 0
+  const validExtras = (Array.isArray(extras) ? extras : []).filter(
+    (entry) => typeof entry.name === 'string' && entry.name.trim().length > 0,
+  )
+
+  if (!hasItems && validExtras.length === 0) {
     res.status(400).json({ error: 'Informe ao menos um item no pedido' })
     return
   }
 
-  for (const entry of items) {
+  for (const entry of items ?? []) {
     if (!entry.itemId || !Number.isInteger(entry.quantity) || (entry.quantity ?? 0) <= 0) {
       res.status(400).json({ error: 'Cada item precisa de itemId e quantity (inteiro > 0)' })
       return
     }
   }
 
-  const itemIds = items.map((entry) => entry.itemId!)
-  const existingItems = await prisma.item.findMany({ where: { id: { in: itemIds } } })
-  if (existingItems.length !== new Set(itemIds).size) {
-    res.status(400).json({ error: 'Um ou mais itens informados não existem' })
-    return
+  for (const entry of validExtras) {
+    if (!Number.isInteger(entry.quantity) || (entry.quantity ?? 0) <= 0) {
+      res.status(400).json({ error: 'Cada item extra precisa de nome e quantity (inteiro > 0)' })
+      return
+    }
+  }
+
+  if (hasItems) {
+    const itemIds = items!.map((entry) => entry.itemId!)
+    const existingItems = await prisma.item.findMany({ where: { id: { in: itemIds } } })
+    if (existingItems.length !== new Set(itemIds).size) {
+      res.status(400).json({ error: 'Um ou mais itens informados não existem' })
+      return
+    }
   }
 
   const order = await prisma.order.create({
     data: {
       branchId,
       items: {
-        create: items.map((entry) => ({
+        create: (items ?? []).map((entry) => ({
           itemId: entry.itemId!,
+          quantity: entry.quantity!,
+        })),
+      },
+      extraItems: {
+        create: validExtras.map((entry) => ({
+          name: entry.name!.trim(),
           quantity: entry.quantity!,
         })),
       },

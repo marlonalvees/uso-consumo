@@ -25,6 +25,11 @@ enum OrderStatus {
   ENTREGUE
 }
 
+enum ItemCategory {
+  PAPELARIA
+  LIMPEZA
+}
+
 model Branch {
   id           String   @id @default(cuid())
   name         String
@@ -41,22 +46,24 @@ model Admin {
 }
 
 model Item {
-  id         String      @id @default(cuid())
-  name       String
+  id         String       @id @default(cuid())
+  name       String       @unique
   unit       String
-  active     Boolean     @default(true)
+  category   ItemCategory @default(LIMPEZA)
+  active     Boolean      @default(true)
   orderItems OrderItem[]
 }
 
 model Order {
-  id          String      @id @default(cuid())
-  branch      Branch      @relation(fields: [branchId], references: [id])
+  id          String           @id @default(cuid())
+  branch      Branch           @relation(fields: [branchId], references: [id])
   branchId    String
-  status      OrderStatus @default(PENDENTE)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  status      OrderStatus      @default(PENDENTE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   deliveredAt DateTime?
   items       OrderItem[]
+  extraItems  OrderExtraItem[]
 }
 
 model OrderItem {
@@ -65,5 +72,13 @@ model OrderItem {
   orderId  String
   item     Item   @relation(fields: [itemId], references: [id])
   itemId   String
+  quantity Int
+}
+
+model OrderExtraItem {
+  id       String @id @default(cuid())
+  order    Order  @relation(fields: [orderId], references: [id])
+  orderId  String
+  name     String
   quantity Int
 }
