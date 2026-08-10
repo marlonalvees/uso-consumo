@@ -80,7 +80,7 @@ export default function Layout() {
         >
           Desenvolvido por Marlon Alves
         </a>
-        {' · '}
+        {' e '}
         <a
           href="https://www.mthcode.com.br/"
           target="_blank"

@@ -83,7 +83,7 @@ export default function Login() {
         >
           Desenvolvido por Marlon Alves
         </a>
-        {' · '}
+        {' e '}
         <a
           href="https://www.mthcode.com.br/"
           target="_blank"
