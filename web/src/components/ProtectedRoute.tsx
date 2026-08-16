@@ -1,18 +1,17 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import type { Role } from '../types'
 
-export default function ProtectedRoute({ roles }: { roles?: Role[] }) {
+export default function ProtectedRoute({ adminOnly = false }: { adminOnly?: boolean }) {
   const { user, loading } = useAuth()
-  const location = useLocation()
 
   if (loading) return null
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+    window.location.href = import.meta.env.VITE_HUB_URL
+    return null
   }
 
-  if (roles && !roles.includes(user.role)) {
+  if (adminOnly && !user.isAdmin) {
     return <Navigate to="/" replace />
   }
 

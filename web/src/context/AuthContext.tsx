@@ -5,8 +5,6 @@ import type { AuthUser } from '../types'
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
-  login: (username: string, password: string) => Promise<AuthUser>
-  logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -16,33 +14,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem('user')
-    if (stored) setUser(JSON.parse(stored) as AuthUser)
-    setLoading(false)
+    api
+      .get<AuthUser>('/auth/me')
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false))
   }, [])
 
-  async function login(username: string, password: string) {
-    const data = await api.post<{ token: string; user: AuthUser }>('/auth/login', {
-      username,
-      password,
-    })
-    localStorage.setItem('token', data.token)
-    localStorage.setItem('user', JSON.stringify(data.user))
-    setUser(data.user)
-    return data.user
-  }
-
-  function logout() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setUser(null)
-  }
-
-  return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

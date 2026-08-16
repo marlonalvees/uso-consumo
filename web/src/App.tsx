@@ -4,17 +4,16 @@ import { OrdersProvider } from './context/OrdersContext'
 import { ItemsProvider } from './context/ItemsContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
-import Login from './pages/Login'
 import NovoPedido from './pages/NovoPedido'
 import MeusPedidos from './pages/MeusPedidos'
 import Dashboard from './pages/Dashboard'
 import Produtos from './pages/Produtos'
 import VisaoFilial from './pages/VisaoFilial'
 
-function RoleRedirect() {
+function DefaultRedirect() {
   const { user } = useAuth()
   if (!user) return null
-  return <Navigate to={user.role === 'ADMIN' ? '/dashboard' : '/pedidos/novo'} replace />
+  return <Navigate to={user.isAdmin ? '/dashboard' : '/pedidos/novo'} replace />
 }
 
 function App() {
@@ -24,15 +23,12 @@ function App() {
         <ItemsProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/login" element={<Login />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
-                  <Route index element={<RoleRedirect />} />
-                  <Route element={<ProtectedRoute roles={['FILIAL']} />}>
-                    <Route path="pedidos/novo" element={<NovoPedido />} />
-                    <Route path="pedidos" element={<MeusPedidos />} />
-                  </Route>
-                  <Route element={<ProtectedRoute roles={['ADMIN']} />}>
+                  <Route index element={<DefaultRedirect />} />
+                  <Route path="pedidos/novo" element={<NovoPedido />} />
+                  <Route path="pedidos" element={<MeusPedidos />} />
+                  <Route element={<ProtectedRoute adminOnly />}>
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="produtos" element={<Produtos />} />
                     <Route path="filiais" element={<VisaoFilial />} />

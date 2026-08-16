@@ -1,0 +1,21 @@
+services:
+  server:
+    build: ./api
+    container_name: usoconsumo-server
+    ports:
+      - "3007:3001"
+    env_file:
+      - ./api/.env
+    environment:
+      PORT: "3001"
+    restart: unless-stopped
+
+  client:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Defina a variável VITE_API_URL antes de buildar}
+    container_name: usoconsumo-client
+    ports:
+      - "8087:80"
+    restart: unless-stopped

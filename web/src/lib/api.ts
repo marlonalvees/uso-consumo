@@ -1,4 +1,6 @@
 const BASE_URL = import.meta.env.VITE_API_URL
+const HUB_URL = import.meta.env.VITE_HUB_URL
+const DEV_TOKEN = import.meta.env.DEV ? import.meta.env.VITE_DEV_TOKEN : undefined
 
 export class ApiError extends Error {
   status: number
@@ -9,12 +11,17 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('token')
   const headers = new Headers(options.headers)
   headers.set('Content-Type', 'application/json')
-  if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (DEV_TOKEN) headers.set('Authorization', `Bearer ${DEV_TOKEN}`)
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers, credentials: 'include' })
+
+  if (res.status === 401) {
+    if (!import.meta.env.DEV) window.location.href = HUB_URL
+    throw new ApiError('Não autorizado', 401)
+  }
+
   const data = await res.json().catch(() => null)
 
   if (!res.ok) {

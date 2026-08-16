@@ -1,13 +1,16 @@
-export type Role = 'ADMIN' | 'FILIAL'
-
-export interface AuthUser {
-  id: string
-  role: Role
+export interface BranchRef {
+  id: number
   name: string
 }
 
+export interface AuthUser {
+  isAdmin: boolean
+  access: string
+  branches: BranchRef[]
+}
+
 export interface Branch {
-  id: string
+  id: number
   name: string
 }
 
@@ -43,12 +46,13 @@ export interface OrderExtraItem {
 
 export interface Order {
   id: string
-  branchId: string
+  branchId: number
   status: OrderStatus
   createdAt: string
   updatedAt: string
   deliveredAt: string | null
-  branch: { id: string; name: string }
+  branch: { id: number; name: string }
+  requestedBy: { id: number; name: string }
   items: OrderItem[]
   extraItems: OrderExtraItem[]
 }

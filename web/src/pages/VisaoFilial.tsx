@@ -8,7 +8,7 @@ type Tab = 'pedidos' | 'novo'
 
 export default function VisaoFilial() {
   const [branches, setBranches] = useState<Branch[]>([])
-  const [branchId, setBranchId] = useState('')
+  const [branchId, setBranchId] = useState<number | ''>('')
   const [tab, setTab] = useState<Tab>('pedidos')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +40,7 @@ export default function VisaoFilial() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <select
               value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
+              onChange={(e) => setBranchId(Number(e.target.value))}
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
             >
               {branches.map((branch) => (
@@ -81,7 +81,9 @@ export default function VisaoFilial() {
             pedidos nem confirmar recebimentos em nome dela.
           </p>
 
-          {tab === 'pedidos' && <MeusPedidos branchId={branchId} readOnly hideTitle />}
+          {tab === 'pedidos' && (
+            <MeusPedidos branchId={branchId === '' ? undefined : branchId} readOnly hideTitle />
+          )}
           {tab === 'novo' && <NovoPedido readOnly />}
         </>
       )}

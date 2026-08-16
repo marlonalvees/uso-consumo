@@ -32,6 +32,8 @@ function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, readO
             month: '2-digit',
             year: 'numeric',
           })}
+          {' · '}
+          Solicitado por {order.requestedBy.name}
         </span>
       </div>
       <div className="mb-4 overflow-x-auto">
@@ -104,7 +106,7 @@ function groupOrdersByMonth(orders: Order[]) {
 }
 
 interface MeusPedidosProps {
-  branchId?: string;
+  branchId?: number;
   readOnly?: boolean;
   hideTitle?: boolean;
 }

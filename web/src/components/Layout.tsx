@@ -1,28 +1,25 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useOrders } from '../context/OrdersContext'
 import Logo from './Logo'
 
 export default function Layout() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const { pendingCount } = useOrders()
-  const navigate = useNavigate()
 
-  const links =
-    user?.role === 'ADMIN'
-      ? [
-          { to: '/dashboard', label: 'Dashboard', badge: 0 },
-          { to: '/produtos', label: 'Produtos', badge: 0 },
-          { to: '/filiais', label: 'Visão da filial', badge: 0 },
-        ]
-      : [
-          { to: '/pedidos/novo', label: 'Novo pedido', badge: 0 },
-          { to: '/pedidos', label: 'Meus pedidos', badge: pendingCount },
-        ]
+  const links = user?.isAdmin
+    ? [
+        { to: '/dashboard', label: 'Dashboard', badge: 0 },
+        { to: '/produtos', label: 'Produtos', badge: 0 },
+        { to: '/filiais', label: 'Visão da filial', badge: 0 },
+      ]
+    : [
+        { to: '/pedidos/novo', label: 'Novo pedido', badge: 0 },
+        { to: '/pedidos', label: 'Meus pedidos', badge: pendingCount },
+      ]
 
   function handleLogout() {
-    logout()
-    navigate('/login', { replace: true })
+    window.location.href = import.meta.env.VITE_HUB_URL
   }
 
   return (
@@ -34,7 +31,11 @@ export default function Layout() {
             <span className="hidden font-semibold text-gray-900 sm:inline">Uso e Consumo</span>
           </div>
           <div className="flex items-center gap-3">
-            {user && <span className="text-sm text-gray-500">{user.name}</span>}
+            {user && user.branches.length > 0 && (
+              <span className="text-sm text-gray-500">
+                {user.branches.map((b) => b.name).join(', ')}
+              </span>
+            )}
             <button
               type="button"
               onClick={handleLogout}

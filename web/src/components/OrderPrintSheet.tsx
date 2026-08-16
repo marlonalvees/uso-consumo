@@ -67,7 +67,7 @@ export default function OrderPrintSheet({ order }: { order: Order }) {
             Solicitante
           </div>
           <div className="border border-t-0 border-gray-400 px-2 py-1.5 text-sm">
-            {order.branch.name}
+            {order.requestedBy.name}
           </div>
         </div>
         <div className="w-32">

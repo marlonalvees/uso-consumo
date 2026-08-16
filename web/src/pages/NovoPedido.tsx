@@ -4,6 +4,7 @@ import { api, ApiError } from '../lib/api'
 import type { ItemCategory, Order } from '../types'
 import { useOrders } from '../context/OrdersContext'
 import { useItems } from '../context/ItemsContext'
+import { useAuth } from '../context/AuthContext'
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   PAPELARIA: 'Produtos Papelaria',
@@ -30,8 +31,11 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
   const navigate = useNavigate()
   const { addOrder } = useOrders()
   const { items, loadingItems } = useItems()
+  const { user } = useAuth()
+  const branches = user?.branches ?? []
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([createEmptyExtraRow()])
+  const [branchId, setBranchId] = useState<number | ''>(branches.length === 1 ? branches[0].id : '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,6 +64,10 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
 
   async function handleSubmit() {
     setError(null)
+    if (!branchId) {
+      setError('Selecione a filial')
+      return
+    }
     if (selectedItems.length === 0 && validExtraRows.length === 0) {
       setError('Selecione ao menos um item')
       return
@@ -67,6 +75,7 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
     setSubmitting(true)
     try {
       const created = await api.post<Order>('/orders', {
+        branchId,
         items: selectedItems.map(([itemId, quantity]) => ({ itemId, quantity })),
         extras: validExtraRows.map((row) => ({ name: row.name.trim(), quantity: row.quantity })),
       })
@@ -90,9 +99,47 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
 
   const totalSelected = selectedItems.length + validExtraRows.length
 
+  if (!readOnly && branches.length === 0) {
+    return (
+      <div>
+        <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>
+        <p className="text-gray-500">
+          Nenhuma filial liberada para você. Fale com o administrador do hub.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className={readOnly ? '' : 'pb-24'}>
       <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>
+
+      {!readOnly && (
+        <div className="mb-6">
+          <label htmlFor="branch" className="mb-1 block text-sm font-medium text-gray-700">
+            Filial
+          </label>
+          {branches.length === 1 ? (
+            <p className="text-sm text-gray-900">{branches[0].name}</p>
+          ) : (
+            <select
+              id="branch"
+              value={branchId}
+              onChange={(e) => setBranchId(Number(e.target.value))}
+              className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+            >
+              <option value="" disabled>
+                Selecione a filial
+              </option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       <div className="space-y-6">
         {itemsByCategory.map((group) => (
