@@ -12,62 +12,56 @@ export default function Layout() {
         { to: '/dashboard', label: 'Dashboard', badge: 0 },
         { to: '/produtos', label: 'Produtos', badge: 0 },
         { to: '/filiais', label: 'Visão da filial', badge: 0 },
+        { to: '/pedidos/novo', label: 'Novo pedido', badge: 0 },
+        { to: '/pedidos', label: 'Meus pedidos', badge: 0 },
       ]
     : [
         { to: '/pedidos/novo', label: 'Novo pedido', badge: 0 },
         { to: '/pedidos', label: 'Meus pedidos', badge: pendingCount },
       ]
 
-  function handleLogout() {
-    window.location.href = import.meta.env.VITE_HUB_URL
-  }
-
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-gray-200 print:hidden">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Logo className="text-xl" />
-            <span className="hidden font-semibold text-gray-900 sm:inline">Uso e Consumo</span>
-          </div>
-          <div className="flex items-center gap-3">
+      <header className="w-full bg-white shadow-sm print:hidden">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-6 py-3">
+          <Logo />
+          <nav className="flex flex-1 flex-wrap items-center gap-1 overflow-x-auto">
+            {links.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end
+                className={({ isActive }) =>
+                  `flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${
+                    isActive
+                      ? 'bg-novamix-teal/10 text-novamix-teal'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`
+                }
+              >
+                {link.label}
+                {link.badge > 0 && (
+                  <span className="flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-novamix-orange px-1 text-xs font-semibold text-white">
+                    {link.badge}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="flex items-center gap-4">
             {user && user.branches.length > 0 && (
-              <span className="text-sm text-gray-500">
+              <span className="hidden text-sm text-gray-500 sm:inline">
                 {user.branches.map((b) => b.name).join(', ')}
               </span>
             )}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="text-sm font-medium text-gray-600 hover:text-novamix-orange"
+            <a
+              href={import.meta.env.VITE_HUB_URL}
+              className="text-sm font-medium text-gray-600 transition hover:text-novamix-orange"
             >
-              Sair
-            </button>
+              ← Voltar ao hub
+            </a>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-2 pb-2">
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end
-              className={({ isActive }) =>
-                `flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium ${
-                  isActive
-                    ? 'bg-novamix-teal/10 text-novamix-teal'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`
-              }
-            >
-              {link.label}
-              {link.badge > 0 && (
-                <span className="flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-novamix-orange px-1 text-xs font-semibold text-white">
-                  {link.badge}
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 print:max-w-none print:p-0">
         <Outlet />

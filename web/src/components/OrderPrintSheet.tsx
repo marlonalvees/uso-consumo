@@ -61,7 +61,7 @@ export default function OrderPrintSheet({ order }: { order: Order }) {
       </div>
 
       <div className="mb-4 flex items-end gap-3">
-        <Logo className="text-2xl" />
+        <Logo className="h-12" />
         <div className="flex-1">
           <div className="bg-black px-2 py-0.5 text-xs font-bold uppercase text-white">
             Solicitante

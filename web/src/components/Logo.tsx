@@ -1,8 +1,5 @@
-export default function Logo({ className = '' }: { className?: string }) {
-  return (
-    <span className={`inline-flex font-bold tracking-tight ${className}`}>
-      <span className="text-novamix-orange">n</span>
-      <span className="text-novamix-teal">m</span>
-    </span>
-  )
+import logoNm from '../assets/logos/logo-nm.jpeg'
+
+export default function Logo({ className = 'h-9' }: { className?: string }) {
+  return <img src={logoNm} alt="Logo Novamix" className={`w-auto rounded-md bg-white ${className}`} />
 }
