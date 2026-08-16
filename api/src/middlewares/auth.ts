@@ -49,7 +49,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 export function requireBranches(req: Request, res: Response, next: NextFunction) {
-  if ((req.auth?.branchs ?? []).length === 0) {
+  if (req.moduleAccess !== ADMIN_ACCESS && (req.auth?.branchs ?? []).length === 0) {
     res.status(401).json({ error: 'Nenhuma filial liberada para esse usuário' })
     return
   }

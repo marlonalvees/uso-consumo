@@ -23,10 +23,24 @@ export async function createOrder(req: Request, res: Response) {
     extras?: { name?: string; quantity?: number }[]
   }
 
-  const allowedBranchIds = req.auth!.branchs.map((b) => b.id)
-  if (!Number.isInteger(branchId) || !allowedBranchIds.includes(branchId as number)) {
-    res.status(403).json({ error: 'Filial informada não está liberada para este usuário' })
+  if (!Number.isInteger(branchId)) {
+    res.status(400).json({ error: 'Informe uma filial válida' })
     return
+  }
+
+  const isAdmin = req.moduleAccess === 'admin'
+  if (isAdmin) {
+    const branch = await prisma.branch.findUnique({ where: { id: branchId as number } })
+    if (!branch) {
+      res.status(400).json({ error: 'Filial informada não existe' })
+      return
+    }
+  } else {
+    const allowedBranchIds = req.auth!.branchs.map((b) => b.id)
+    if (!allowedBranchIds.includes(branchId as number)) {
+      res.status(403).json({ error: 'Filial informada não está liberada para este usuário' })
+      return
+    }
   }
 
   const hasItems = Array.isArray(items) && items.length > 0
@@ -138,16 +152,19 @@ export async function confirmDelivery(req: Request, res: Response) {
     res.status(400).json({ error: 'Id do pedido inválido' })
     return
   }
-  const allowedBranchIds = req.auth!.branchs.map((b) => b.id)
+  const isAdmin = req.moduleAccess === 'admin'
 
   const order = await prisma.order.findUnique({ where: { id } })
   if (!order) {
     res.status(404).json({ error: 'Pedido não encontrado' })
     return
   }
-  if (!allowedBranchIds.includes(order.branchId)) {
-    res.status(403).json({ error: 'Esse pedido não pertence a uma filial liberada para você' })
-    return
+  if (!isAdmin) {
+    const allowedBranchIds = req.auth!.branchs.map((b) => b.id)
+    if (!allowedBranchIds.includes(order.branchId)) {
+      res.status(403).json({ error: 'Esse pedido não pertence a uma filial liberada para você' })
+      return
+    }
   }
   if (order.status !== OrderStatus.ENVIADO) {
     res.status(400).json({ error: 'Só é possível confirmar entrega de pedidos enviados' })

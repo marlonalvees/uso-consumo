@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import type { ItemCategory, Order } from '../types'
@@ -25,9 +25,11 @@ function createEmptyExtraRow(): ExtraRow {
 
 interface NovoPedidoProps {
   readOnly?: boolean
+  fixedBranchId?: number
+  hideTitle?: boolean
 }
 
-export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
+export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle = false }: NovoPedidoProps = {}) {
   const navigate = useNavigate()
   const { addOrder } = useOrders()
   const { items, loadingItems } = useItems()
@@ -35,9 +37,15 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
   const branches = user?.branches ?? []
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([createEmptyExtraRow()])
-  const [branchId, setBranchId] = useState<number | ''>(branches.length === 1 ? branches[0].id : '')
+  const [branchId, setBranchId] = useState<number | ''>(
+    fixedBranchId ?? (branches.length === 1 ? branches[0].id : ''),
+  )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (fixedBranchId !== undefined) setBranchId(fixedBranchId)
+  }, [fixedBranchId])
 
   function updateQuantity(itemId: string, delta: number) {
     setQuantities((prev) => {
@@ -99,10 +107,10 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
 
   const totalSelected = selectedItems.length + validExtraRows.length
 
-  if (!readOnly && branches.length === 0) {
+  if (!readOnly && fixedBranchId === undefined && branches.length === 0) {
     return (
       <div>
-        <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>
+        {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
         <p className="text-gray-500">
           Nenhuma filial liberada para você. Fale com o administrador do hub.
         </p>
@@ -112,9 +120,9 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
 
   return (
     <div className={readOnly ? '' : 'pb-24'}>
-      <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>
+      {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
 
-      {!readOnly && (
+      {!readOnly && fixedBranchId === undefined && (
         <div className="mb-6">
           <label htmlFor="branch" className="mb-1 block text-sm font-medium text-gray-700">
             Filial

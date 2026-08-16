@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ApiError, api } from '../lib/api';
 import type { Order } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrdersContext';
 import OrderStatusTimeline from '../components/OrderStatusTimeline';
 import OrderPrintSheet from '../components/OrderPrintSheet';
@@ -109,9 +110,16 @@ interface MeusPedidosProps {
   branchId?: number;
   readOnly?: boolean;
   hideTitle?: boolean;
+  onlyMine?: boolean;
 }
 
-export default function MeusPedidos({ branchId, readOnly = false, hideTitle = false }: MeusPedidosProps = {}) {
+export default function MeusPedidos({
+  branchId,
+  readOnly = false,
+  hideTitle = false,
+  onlyMine = false,
+}: MeusPedidosProps = {}) {
+  const { user } = useAuth();
   const { orders: allOrders, loadingOrders: loading, updateOrder } = useOrders();
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -140,9 +148,9 @@ export default function MeusPedidos({ branchId, readOnly = false, hideTitle = fa
     return <p className="text-gray-500">Carregando pedidos...</p>;
   }
 
-  const scopedOrders = branchId
-    ? allOrders.filter((order) => order.branchId === branchId)
-    : allOrders;
+  const scopedOrders = allOrders
+    .filter((order) => (branchId ? order.branchId === branchId : true))
+    .filter((order) => (onlyMine ? order.requestedBy.id === user?.id : true));
   const awaitingConfirmation = scopedOrders.filter((order) => order.status === 'ENVIADO');
   const remainingOrders = scopedOrders.filter((order) => order.status !== 'ENVIADO');
   const monthGroups = groupOrdersByMonth(remainingOrders);

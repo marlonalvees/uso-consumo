@@ -14,5 +14,5 @@ export async function me(req: Request, res: Response) {
       })
     : []
 
-  res.json({ isAdmin: isModuleAdmin(access), access, branches })
+  res.json({ id: req.auth!.sub, isAdmin: isModuleAdmin(access), access, branches })
 }

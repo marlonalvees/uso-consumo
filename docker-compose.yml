@@ -15,6 +15,7 @@ services:
       context: ./web
       args:
         VITE_API_URL: ${VITE_API_URL:?Defina a variável VITE_API_URL antes de buildar}
+        VITE_HUB_URL: ${VITE_HUB_URL:?Defina a variável VITE_HUB_URL antes de buildar}
     container_name: usoconsumo-client
     ports:
       - "8087:80"

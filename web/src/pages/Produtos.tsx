@@ -19,7 +19,11 @@ function emptyForm(): ItemFormState {
   return { name: '', unit: '', category: 'LIMPEZA' }
 }
 
-export default function Produtos() {
+interface ProdutosProps {
+  hideTitle?: boolean
+}
+
+export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -134,7 +138,7 @@ export default function Produtos() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-gray-900">Produtos</h1>
+      {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Produtos</h1>}
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4">

@@ -4,6 +4,7 @@ export interface BranchRef {
 }
 
 export interface AuthUser {
+  id: number
   isAdmin: boolean
   access: string
   branches: BranchRef[]
