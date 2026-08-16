@@ -1,5 +1,5 @@
 import type { Order, OrderItem } from '../types'
-import Logo from './Logo'
+import logoNm from '../assets/logos/logo-nm.jpeg'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -61,7 +61,7 @@ export default function OrderPrintSheet({ order }: { order: Order }) {
       </div>
 
       <div className="mb-4 flex items-end gap-3">
-        <Logo className="h-12" />
+        <img src={logoNm} alt="Logo Novamix" className="h-12 w-auto rounded-md bg-white" />
         <div className="flex-1">
           <div className="bg-black px-2 py-0.5 text-xs font-bold uppercase text-white">
             Solicitante
