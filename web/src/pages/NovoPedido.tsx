@@ -241,7 +241,7 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       {!readOnly && (
-        <div className="fixed inset-x-0 bottom-0 border-t border-gray-200 bg-white p-4">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white p-4 lg:left-64">
           <div className="mx-auto max-w-5xl">
             <button
               type="button"

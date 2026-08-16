@@ -7,8 +7,8 @@ import { CloseIcon, LogOutIcon, MenuIcon } from './icons'
 
 const linkBaseClass =
   'flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors'
-const linkActiveClass = 'bg-novamix-teal text-white'
-const linkInactiveClass = 'text-gray-600 hover:bg-novamix-teal/10 hover:text-novamix-teal'
+const linkActiveClass = 'bg-orange-base text-white'
+const linkInactiveClass = 'text-gray-text hover:bg-orange-base/10 hover:text-orange-base'
 
 export default function Sidebar() {
   const { user } = useAuth()
@@ -49,7 +49,7 @@ export default function Sidebar() {
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="fixed top-4 left-4 z-50 rounded-md bg-novamix-teal p-2 text-white shadow-lg transition-colors hover:bg-novamix-teal-dark lg:hidden"
+        className="fixed top-4 left-4 z-50 rounded-md bg-orange-base p-2 text-white shadow-lg transition-colors hover:bg-orange-light lg:hidden"
         aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
       >
         {isOpen ? <CloseIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
@@ -63,19 +63,13 @@ export default function Sidebar() {
       />
 
       <aside
-        className={`fixed top-0 left-0 z-40 flex h-dvh w-64 flex-col border-r border-gray-200 bg-white shadow-sm transition-transform duration-300 ease-in-out lg:z-auto lg:translate-x-0 ${
+        className={`fixed top-0 left-0 z-40 flex h-dvh w-64 flex-col border-r border-gray-base/30 bg-white shadow-sm transition-transform duration-300 ease-in-out lg:z-auto lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <Logo compact />
 
-        {user && user.branches.length > 0 && (
-          <p className="px-4 pb-2 text-center text-xs text-gray-500">
-            {user.branches.map((b) => b.name).join(', ')}
-          </p>
-        )}
-
-        <nav className="mt-4 flex flex-1 flex-col gap-2 overflow-y-auto px-4">
+        <nav className="mt-8 flex flex-1 flex-col gap-2 overflow-y-auto px-4">
           {links.map((link) => (
             <NavLink
               key={link.to}
@@ -86,7 +80,7 @@ export default function Sidebar() {
             >
               {link.label}
               {link.badge > 0 && (
-                <span className="flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-novamix-orange px-1 text-xs font-semibold text-white">
+                <span className="flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-base px-1 text-xs font-semibold text-white">
                   {link.badge}
                 </span>
               )}
@@ -96,7 +90,7 @@ export default function Sidebar() {
 
         <a
           href={import.meta.env.VITE_HUB_URL}
-          className="mx-4 mb-6 flex items-center justify-center gap-2 rounded-lg bg-novamix-orange px-4 py-2 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-novamix-orange-dark"
+          className="mx-4 mb-6 flex items-center justify-center gap-2 rounded-lg bg-red-light px-4 py-2 text-center text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-base"
         >
           <LogOutIcon className="h-4 w-4" />
           Voltar ao hub
