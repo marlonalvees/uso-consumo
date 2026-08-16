@@ -196,7 +196,7 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
             Extras — escreva abaixo
           </h2>
-          <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200">
+          <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
             {extraRows.map((row) => (
               <li key={row.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
                 <input

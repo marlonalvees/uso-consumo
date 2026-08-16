@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import type { Item, ItemCategory } from '../types'
-import { EditIcon, TrashIcon } from '../components/icons'
+import { CheckIcon, CloseIcon, EditIcon, TrashIcon } from '../components/icons'
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   PAPELARIA: 'Papelaria',
@@ -188,15 +188,20 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
           </div>
           <div className="sm:w-32">
             <label className="mb-1 block text-xs font-medium text-gray-500">Valor</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={newItem.price}
-              onChange={(e) => setNewItem((prev) => ({ ...prev, price: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              placeholder="0,00"
-            />
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-400">
+                R$
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newItem.price}
+                onChange={(e) => setNewItem((prev) => ({ ...prev, price: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+                placeholder="0,00"
+              />
+            </div>
           </div>
           <div className="sm:w-40">
             <label className="mb-1 block text-xs font-medium text-gray-500">Categoria</label>
@@ -268,16 +273,21 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                           />
                         </td>
                         <td className="px-4 py-2">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={editForm.price}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, price: e.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                          />
+                          <div className="relative">
+                            <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-xs text-gray-400">
+                              R$
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editForm.price}
+                              onChange={(e) =>
+                                setEditForm((prev) => ({ ...prev, price: e.target.value }))
+                              }
+                              className="w-full rounded-lg border border-gray-300 bg-white py-1 pr-2 pl-7 text-sm"
+                            />
+                          </div>
                         </td>
                         <td className="px-4 py-2">
                           <select
@@ -305,16 +315,18 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                             type="button"
                             onClick={() => handleSaveEdit(item.id)}
                             disabled={savingId === item.id}
-                            className="mr-3 text-sm font-medium text-novamix-teal hover:text-novamix-teal-dark disabled:opacity-60"
+                            aria-label="Salvar"
+                            className="mr-3 inline-flex items-center justify-center rounded-lg p-1.5 text-novamix-teal transition hover:bg-novamix-teal/10 disabled:opacity-60"
                           >
-                            Salvar
+                            <CheckIcon className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
                             onClick={cancelEdit}
-                            className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                            aria-label="Cancelar"
+                            className="inline-flex items-center justify-center rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100"
                           >
-                            Cancelar
+                            <CloseIcon className="h-4 w-4" />
                           </button>
                         </td>
                       </>

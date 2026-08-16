@@ -10,7 +10,13 @@ const STATUS_ORDER: OrderStatus[] = [
   'ENTREGUE',
 ]
 
-function StatCard({ label, value, hint }: { label: string; value: number; hint?: string }) {
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function formatCurrency(value: number) {
+  return currencyFormatter.format(value)
+}
+
+function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</p>
@@ -23,9 +29,11 @@ function StatCard({ label, value, hint }: { label: string; value: number; hint?:
 function BarList({
   title,
   rows,
+  formatValue = (value) => String(value),
 }: {
   title: string
   rows: { label: string; value: number }[]
+  formatValue?: (value: number) => string
 }) {
   const max = Math.max(1, ...rows.map((r) => r.value))
   return (
@@ -41,7 +49,7 @@ function BarList({
             <li key={row.label}>
               <div className="mb-1 flex items-center justify-between text-sm">
                 <span className="text-gray-700">{row.label}</span>
-                <span className="font-medium text-gray-900">{row.value}</span>
+                <span className="font-medium text-gray-900">{formatValue(row.value)}</span>
               </div>
               <div className="h-2 rounded-full bg-gray-100">
                 <div
@@ -75,12 +83,19 @@ export default function Dashboard() {
   }))
 
   const porFilialMap = new Map<string, number>()
+  const consumoFilialMap = new Map<string, number>()
   for (const order of orders) {
     porFilialMap.set(order.branch.name, (porFilialMap.get(order.branch.name) ?? 0) + 1)
+    const valorPedido = order.items.reduce((sum, oi) => sum + oi.quantity * oi.item.price, 0)
+    consumoFilialMap.set(order.branch.name, (consumoFilialMap.get(order.branch.name) ?? 0) + valorPedido)
   }
   const porFilial = [...porFilialMap.entries()]
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value)
+  const consumoPorFilial = [...consumoFilialMap.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+  const consumoTotal = consumoPorFilial.reduce((sum, row) => sum + row.value, 0)
 
   const porItemMap = new Map<string, number>()
   for (const order of orders) {
@@ -101,17 +116,23 @@ export default function Dashboard() {
       <h1 className="mb-1 text-2xl font-semibold text-gray-900">Dashboard</h1>
       <p className="mb-6 text-sm text-gray-500">Panorama geral dos pedidos de uso e consumo.</p>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total de pedidos" value={totalPedidos} />
-        <StatCard label="Em andamento" value={pendentes} hint="ainda não entregues" />
-        <StatCard label="Aguardando confirmação" value={aguardandoConfirmacao} hint="status enviado" />
-        <StatCard label="Entregues" value={entregues} />
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard label="Total de pedidos" value={String(totalPedidos)} />
+        <StatCard label="Em andamento" value={String(pendentes)} hint="ainda não entregues" />
+        <StatCard
+          label="Aguardando confirmação"
+          value={String(aguardandoConfirmacao)}
+          hint="status enviado"
+        />
+        <StatCard label="Entregues" value={String(entregues)} />
+        <StatCard label="Valor consumido" value={formatCurrency(consumoTotal)} hint="soma dos itens pedidos" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <BarList title="Pedidos por estágio" rows={porStatus} />
         <BarList title="Pedidos por filial" rows={porFilial} />
         <BarList title="Itens mais pedidos" rows={topItens} />
+        <BarList title="Consumo por filial (R$)" rows={consumoPorFilial} formatValue={formatCurrency} />
       </div>
     </div>
   )
