@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import type { Item, ItemCategory } from '../types'
+import { EditIcon, TrashIcon } from '../components/icons'
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   PAPELARIA: 'Papelaria',
@@ -9,14 +10,21 @@ const CATEGORY_LABELS: Record<ItemCategory, string> = {
 
 const CATEGORY_OPTIONS: ItemCategory[] = ['PAPELARIA', 'LIMPEZA']
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+function formatCurrency(value: number) {
+  return currencyFormatter.format(value)
+}
+
 interface ItemFormState {
   name: string
   unit: string
+  price: string
   category: ItemCategory
 }
 
 function emptyForm(): ItemFormState {
-  return { name: '', unit: '', category: 'LIMPEZA' }
+  return { name: '', unit: '', price: '', category: 'LIMPEZA' }
 }
 
 interface ProdutosProps {
@@ -53,12 +61,18 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
       setError('Preencha nome e unidade')
       return
     }
+    const price = newItem.price.trim() === '' ? 0 : Number(newItem.price)
+    if (!Number.isFinite(price) || price < 0) {
+      setError('Informe um valor válido')
+      return
+    }
     setCreating(true)
     try {
       const created = await api.post<Item>('/items', {
         name: newItem.name.trim(),
         unit: newItem.unit.trim(),
         category: newItem.category,
+        price,
       })
       setItems((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
       setNewItem(emptyForm())
@@ -71,7 +85,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
 
   function startEdit(item: Item) {
     setEditingId(item.id)
-    setEditForm({ name: item.name, unit: item.unit, category: item.category })
+    setEditForm({ name: item.name, unit: item.unit, price: String(item.price), category: item.category })
   }
 
   function cancelEdit() {
@@ -84,12 +98,18 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
       setError('Preencha nome e unidade')
       return
     }
+    const price = editForm.price.trim() === '' ? 0 : Number(editForm.price)
+    if (!Number.isFinite(price) || price < 0) {
+      setError('Informe um valor válido')
+      return
+    }
     setSavingId(id)
     try {
       const updated = await api.patch<Item>(`/items/${id}`, {
         name: editForm.name.trim(),
         unit: editForm.unit.trim(),
         category: editForm.category,
+        price,
       })
       setItems((prev) => prev.map((i) => (i.id === id ? updated : i)))
       setEditingId(null)
@@ -152,7 +172,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
               type="text"
               value={newItem.name}
               onChange={(e) => setNewItem((prev) => ({ ...prev, name: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
               placeholder="Ex: Papel A4"
             />
           </div>
@@ -162,8 +182,20 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
               type="text"
               value={newItem.unit}
               onChange={(e) => setNewItem((prev) => ({ ...prev, unit: e.target.value }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
               placeholder="Ex: pacote"
+            />
+          </div>
+          <div className="sm:w-32">
+            <label className="mb-1 block text-xs font-medium text-gray-500">Valor</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={newItem.price}
+              onChange={(e) => setNewItem((prev) => ({ ...prev, price: e.target.value }))}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              placeholder="0,00"
             />
           </div>
           <div className="sm:w-40">
@@ -173,7 +205,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
               onChange={(e) =>
                 setNewItem((prev) => ({ ...prev, category: e.target.value as ItemCategory }))
               }
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
             >
               {CATEGORY_OPTIONS.map((category) => (
                 <option key={category} value={category}>
@@ -202,6 +234,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
               <tr>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Nome</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Unidade</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-500">Valor</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Categoria</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
                 <th className="px-4 py-2 text-right font-medium text-gray-500">Ações</th>
@@ -221,7 +254,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                             onChange={(e) =>
                               setEditForm((prev) => ({ ...prev, name: e.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -231,7 +264,19 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                             onChange={(e) =>
                               setEditForm((prev) => ({ ...prev, unit: e.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editForm.price}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({ ...prev, price: e.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -243,7 +288,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                                 category: e.target.value as ItemCategory,
                               }))
                             }
-                            className="w-full rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
                           >
                             {CATEGORY_OPTIONS.map((category) => (
                               <option key={category} value={category}>
@@ -277,6 +322,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                       <>
                         <td className="px-4 py-3 font-medium text-gray-900">{item.name}</td>
                         <td className="px-4 py-3 text-gray-600">{item.unit}</td>
+                        <td className="px-4 py-3 text-gray-600">{formatCurrency(item.price)}</td>
                         <td className="px-4 py-3 text-gray-600">{CATEGORY_LABELS[item.category]}</td>
                         <td className="px-4 py-3">
                           <button
@@ -296,17 +342,19 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                           <button
                             type="button"
                             onClick={() => startEdit(item)}
-                            className="mr-3 text-sm font-medium text-novamix-teal hover:text-novamix-teal-dark"
+                            aria-label="Editar"
+                            className="mr-3 inline-flex items-center justify-center rounded-lg p-1.5 text-novamix-orange transition hover:bg-novamix-orange/10"
                           >
-                            Editar
+                            <EditIcon className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(item)}
                             disabled={deletingId === item.id}
-                            className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-60"
+                            aria-label="Apagar"
+                            className="inline-flex items-center justify-center rounded-lg p-1.5 text-black transition hover:bg-gray-100 disabled:opacity-60"
                           >
-                            Apagar
+                            <TrashIcon className="h-4 w-4" />
                           </button>
                         </td>
                       </>

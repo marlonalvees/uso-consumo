@@ -24,9 +24,9 @@ function App() {
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
                   <Route index element={<DefaultRedirect />} />
+                  <Route path="dashboard" element={<Dashboard />} />
                   <Route path="pedidos" element={<Pedidos />} />
                   <Route element={<ProtectedRoute adminOnly />}>
-                    <Route path="dashboard" element={<Dashboard />} />
                     <Route path="administracao" element={<Administracao />} />
                   </Route>
                 </Route>

@@ -134,7 +134,7 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
               id="branch"
               value={branchId}
               onChange={(e) => setBranchId(Number(e.target.value))}
-              className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
             >
               <option value="" disabled>
                 Selecione a filial
@@ -204,7 +204,7 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
                   value={row.name}
                   onChange={(e) => updateExtraRow(row.id, { name: e.target.value })}
                   placeholder="Nome do item"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal sm:flex-1"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal sm:flex-1"
                 />
                 <div className="flex items-center justify-end gap-3 sm:justify-start">
                   <button

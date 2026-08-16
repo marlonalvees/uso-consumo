@@ -56,7 +56,7 @@ export default function Pedidos() {
               <select
                 value={branchId}
                 onChange={(e) => setBranchId(Number(e.target.value))}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               >
                 {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>

@@ -12,10 +12,11 @@ export async function listItems(req: Request, res: Response) {
 }
 
 export async function createItem(req: Request, res: Response) {
-  const { name, unit, category } = req.body as {
+  const { name, unit, category, price } = req.body as {
     name?: string
     unit?: string
     category?: string
+    price?: number
   }
 
   if (!name?.trim() || !unit?.trim()) {
@@ -26,6 +27,10 @@ export async function createItem(req: Request, res: Response) {
     res.status(400).json({ error: `category deve ser um de: ${Object.values(ItemCategory).join(', ')}` })
     return
   }
+  if (price !== undefined && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) {
+    res.status(400).json({ error: 'price deve ser um número maior ou igual a 0' })
+    return
+  }
 
   try {
     const item = await prisma.item.create({
@@ -33,6 +38,7 @@ export async function createItem(req: Request, res: Response) {
         name: name.trim(),
         unit: unit.trim(),
         category: (category as ItemCategory) ?? undefined,
+        price: price ?? undefined,
       },
     })
     res.status(201).json(item)
@@ -52,11 +58,12 @@ export async function updateItem(req: Request, res: Response) {
     return
   }
 
-  const { name, unit, category, active } = req.body as {
+  const { name, unit, category, active, price } = req.body as {
     name?: string
     unit?: string
     category?: string
     active?: boolean
+    price?: number
   }
 
   if (name !== undefined && !name.trim()) {
@@ -69,6 +76,10 @@ export async function updateItem(req: Request, res: Response) {
   }
   if (category !== undefined && !Object.values(ItemCategory).includes(category as ItemCategory)) {
     res.status(400).json({ error: `category deve ser um de: ${Object.values(ItemCategory).join(', ')}` })
+    return
+  }
+  if (price !== undefined && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) {
+    res.status(400).json({ error: 'price deve ser um número maior ou igual a 0' })
     return
   }
 
@@ -86,6 +97,7 @@ export async function updateItem(req: Request, res: Response) {
         unit: unit?.trim(),
         category: category as ItemCategory | undefined,
         active,
+        price,
       },
     })
     res.json(item)

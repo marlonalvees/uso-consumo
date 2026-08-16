@@ -37,7 +37,10 @@ export default function Sidebar() {
         { to: '/pedidos', label: 'Pedidos', badge: 0 },
         { to: '/administracao', label: 'Administração', badge: 0 },
       ]
-    : [{ to: '/pedidos', label: 'Pedidos', badge: pendingCount }]
+    : [
+        { to: '/dashboard', label: 'Dashboard', badge: 0 },
+        { to: '/pedidos', label: 'Pedidos', badge: pendingCount },
+      ]
 
   return (
     <div className="print:hidden">

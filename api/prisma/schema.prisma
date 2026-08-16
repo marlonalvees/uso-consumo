@@ -61,6 +61,7 @@ model Item {
   id         String       @id @default(cuid())
   name       String       @unique
   unit       String
+  price      Float        @default(0)
   category   ItemCategory @default(LIMPEZA)
   active     Boolean      @default(true)
   orderItems OrderItem[]

@@ -21,6 +21,7 @@ export interface Item {
   id: string
   name: string
   unit: string
+  price: number
   category: ItemCategory
   active: boolean
 }
