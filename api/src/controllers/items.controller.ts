@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma'
 import { ItemCategory, Prisma } from '../generated/prisma/client'
 
 export async function listItems(req: Request, res: Response) {
-  const isAdmin = req.auth?.role === 'ADMIN'
+  const isAdmin = req.moduleAccess === 'admin'
   const items = await prisma.item.findMany({
     where: isAdmin ? {} : { active: true },
     orderBy: { name: 'asc' },

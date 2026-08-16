@@ -1,11 +1,11 @@
 import { Router } from 'express'
-import { requireAuth, requireRole } from '../middlewares/auth'
+import { requireAuth, requireModule, requireAdmin } from '../middlewares/auth'
 import { listBranches } from '../controllers/branches.controller'
 
 const router = Router()
 
-router.use(requireAuth)
+router.use(requireAuth, requireModule)
 
-router.get('/', requireRole('ADMIN'), listBranches)
+router.get('/', requireAdmin, listBranches)
 
 export default router

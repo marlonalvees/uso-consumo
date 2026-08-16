@@ -12,9 +12,10 @@ generator client {
 
 // configura "qual banco e como conectar"
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  schemas   = ["public", "uso_consumo"]
 }
 
 enum OrderStatus {
@@ -23,26 +24,37 @@ enum OrderStatus {
   AGUARDANDO_ENVIO
   ENVIADO
   ENTREGUE
+
+  @@map("order_status")
+  @@schema("uso_consumo")
 }
 
 enum ItemCategory {
   PAPELARIA
   LIMPEZA
+
+  @@map("item_category")
+  @@schema("uso_consumo")
 }
 
+/// Tabela do hub central (schema public) — somente leitura, nunca criar/alterar/apagar por aqui.
 model Branch {
-  id           String   @id @default(cuid())
-  name         String
-  username     String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  orders       Order[]
+  id     Int     @id
+  name   String
+  orders Order[]
+
+  @@map("branchs")
+  @@schema("public")
 }
 
-model Admin {
-  id           String @id @default(cuid())
-  username     String @unique
-  passwordHash String
+/// Tabela do hub central (schema public) — somente leitura, nunca criar/alterar/apagar por aqui.
+model User {
+  id     Int     @id
+  name   String
+  orders Order[]
+
+  @@map("users")
+  @@schema("public")
 }
 
 model Item {
@@ -52,33 +64,47 @@ model Item {
   category   ItemCategory @default(LIMPEZA)
   active     Boolean      @default(true)
   orderItems OrderItem[]
+
+  @@map("item")
+  @@schema("uso_consumo")
 }
 
 model Order {
-  id          String           @id @default(cuid())
-  branch      Branch           @relation(fields: [branchId], references: [id])
-  branchId    String
-  status      OrderStatus      @default(PENDENTE)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  deliveredAt DateTime?
-  items       OrderItem[]
-  extraItems  OrderExtraItem[]
+  id            String           @id @default(cuid())
+  branch        Branch           @relation(fields: [branchId], references: [id])
+  branchId      Int              @map("branch_id")
+  requestedBy   User             @relation(fields: [requestedById], references: [id])
+  requestedById Int              @map("user_hub_id")
+  status        OrderStatus      @default(PENDENTE)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  deliveredAt   DateTime?        @map("delivered_at")
+  items         OrderItem[]
+  extraItems    OrderExtraItem[]
+
+  @@map("order")
+  @@schema("uso_consumo")
 }
 
 model OrderItem {
   id       String @id @default(cuid())
   order    Order  @relation(fields: [orderId], references: [id])
-  orderId  String
+  orderId  String @map("order_id")
   item     Item   @relation(fields: [itemId], references: [id])
-  itemId   String
+  itemId   String @map("item_id")
   quantity Int
+
+  @@map("order_item")
+  @@schema("uso_consumo")
 }
 
 model OrderExtraItem {
   id       String @id @default(cuid())
   order    Order  @relation(fields: [orderId], references: [id])
-  orderId  String
+  orderId  String @map("order_id")
   name     String
   quantity Int
+
+  @@map("order_extra_item")
+  @@schema("uso_consumo")
 }

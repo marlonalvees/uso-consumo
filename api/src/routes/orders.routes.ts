@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth, requireRole } from '../middlewares/auth'
+import { requireAuth, requireModule, requireAdmin, requireBranches } from '../middlewares/auth'
 import {
   createOrder,
   listOrders,
@@ -9,11 +9,11 @@ import {
 
 const router = Router()
 
-router.use(requireAuth)
+router.use(requireAuth, requireModule)
 
-router.post('/', requireRole('FILIAL'), createOrder)
+router.post('/', requireBranches, createOrder)
 router.get('/', listOrders)
-router.patch('/:id/status', requireRole('ADMIN'), updateOrderStatus)
-router.patch('/:id/confirm-delivery', requireRole('FILIAL'), confirmDelivery)
+router.patch('/:id/status', requireAdmin, updateOrderStatus)
+router.patch('/:id/confirm-delivery', requireBranches, confirmDelivery)
 
 export default router

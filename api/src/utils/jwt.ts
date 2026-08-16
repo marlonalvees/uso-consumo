@@ -1,11 +1,9 @@
 import jwt from 'jsonwebtoken'
 
-export type Role = 'ADMIN' | 'FILIAL'
-
-export interface AuthPayload {
-  id: string
-  role: Role
-  name: string
+export interface AuthUser {
+  sub: number
+  permissions: { module: string; access: string }[]
+  branchs: { id: number }[]
 }
 
 function getSecret(): string {
@@ -16,10 +14,6 @@ function getSecret(): string {
   return secret
 }
 
-export function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, getSecret(), { expiresIn: '7d' })
-}
-
-export function verifyToken(token: string): AuthPayload {
-  return jwt.verify(token, getSecret()) as AuthPayload
+export function verifyToken(token: string): AuthUser {
+  return jwt.verify(token, getSecret()) as unknown as AuthUser
 }

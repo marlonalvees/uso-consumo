@@ -4,6 +4,7 @@ import { OrderStatus } from '../generated/prisma/client'
 
 const ORDER_INCLUDE = {
   branch: { select: { id: true, name: true } },
+  requestedBy: { select: { id: true, name: true } },
   items: { include: { item: true } },
   extraItems: true,
 } as const
@@ -16,10 +17,16 @@ const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
 ]
 
 export async function createOrder(req: Request, res: Response) {
-  const branchId = req.auth!.id
-  const { items, extras } = req.body as {
+  const { branchId, items, extras } = req.body as {
+    branchId?: number
     items?: { itemId?: string; quantity?: number }[]
     extras?: { name?: string; quantity?: number }[]
+  }
+
+  const allowedBranchIds = req.auth!.branchs.map((b) => b.id)
+  if (!Number.isInteger(branchId) || !allowedBranchIds.includes(branchId as number)) {
+    res.status(403).json({ error: 'Filial informada não está liberada para este usuário' })
+    return
   }
 
   const hasItems = Array.isArray(items) && items.length > 0
@@ -57,7 +64,8 @@ export async function createOrder(req: Request, res: Response) {
 
   const order = await prisma.order.create({
     data: {
-      branchId,
+      branchId: branchId as number,
+      requestedById: req.auth!.sub,
       items: {
         create: (items ?? []).map((entry) => ({
           itemId: entry.itemId!,
@@ -78,10 +86,11 @@ export async function createOrder(req: Request, res: Response) {
 }
 
 export async function listOrders(req: Request, res: Response) {
-  const { role, id } = req.auth!
+  const isAdmin = req.moduleAccess === 'admin'
+  const branchIds = req.auth!.branchs.map((b) => b.id)
 
   const orders = await prisma.order.findMany({
-    where: role === 'FILIAL' ? { branchId: id } : {},
+    where: isAdmin ? {} : { branchId: { in: branchIds } },
     include: ORDER_INCLUDE,
     orderBy: { createdAt: 'desc' },
   })
@@ -129,15 +138,15 @@ export async function confirmDelivery(req: Request, res: Response) {
     res.status(400).json({ error: 'Id do pedido inválido' })
     return
   }
-  const branchId = req.auth!.id
+  const allowedBranchIds = req.auth!.branchs.map((b) => b.id)
 
   const order = await prisma.order.findUnique({ where: { id } })
   if (!order) {
     res.status(404).json({ error: 'Pedido não encontrado' })
     return
   }
-  if (order.branchId !== branchId) {
-    res.status(403).json({ error: 'Esse pedido não pertence à sua filial' })
+  if (!allowedBranchIds.includes(order.branchId)) {
+    res.status(403).json({ error: 'Esse pedido não pertence a uma filial liberada para você' })
     return
   }
   if (order.status !== OrderStatus.ENVIADO) {
