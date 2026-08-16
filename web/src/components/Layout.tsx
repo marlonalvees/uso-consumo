@@ -10,20 +10,21 @@ export default function Layout() {
           <Outlet />
         </div>
         <footer className="border-t border-gray-200 px-4 py-4 text-center text-xs text-gray-500 print:hidden">
+          Desenvolvido por{' '}
           <a
             href="https://www.marlonalves.dev/"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-novamix-teal"
+            className="font-medium text-gray-600 transition hover:text-novamix-teal"
           >
-            Desenvolvido por Marlon Alves
-          </a>
-          {' e '}
+            Marlon Alves
+          </a>{' '}
+          e{' '}
           <a
             href="https://www.mthcode.com.br/"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-novamix-teal"
+            className="font-medium text-gray-600 transition hover:text-novamix-teal"
           >
             MTHCODE
           </a>

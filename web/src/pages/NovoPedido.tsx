@@ -147,7 +147,7 @@ export default function NovoPedido({ readOnly = false }: NovoPedidoProps = {}) {
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
               {CATEGORY_LABELS[group.category]}
             </h2>
-            <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200">
+            <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
               {group.items.map((item) => {
                 const quantity = quantities[item.id] ?? 0
                 return (

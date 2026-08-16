@@ -52,7 +52,7 @@ export default function Dashboard() {
         {orders.length === 0 ? (
           <p className="text-gray-500">Nenhum pedido ainda.</p>
         ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>

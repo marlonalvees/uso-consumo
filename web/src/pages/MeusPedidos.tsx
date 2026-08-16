@@ -21,7 +21,7 @@ function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, readO
       className={`rounded-xl border p-4 ${
         highlighted
           ? 'border-novamix-orange/40 bg-novamix-orange/5 ring-1 ring-novamix-orange/20'
-          : 'border-gray-200'
+          : 'border-gray-200 bg-white'
       }`}
     >
       <div className="mb-4">

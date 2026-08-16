@@ -50,7 +50,7 @@ export default function VisaoFilial() {
               ))}
             </select>
 
-            <div className="flex gap-1 rounded-lg border border-gray-200 p-1">
+            <div className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
               <button
                 type="button"
                 onClick={() => setTab('pedidos')}

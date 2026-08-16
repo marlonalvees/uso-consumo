@@ -6,7 +6,7 @@ import Logo from './Logo'
 import { CloseIcon, LogOutIcon, MenuIcon } from './icons'
 
 const linkBaseClass =
-  'flex w-full items-center justify-between gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors'
+  'relative block w-full rounded-lg px-4 py-2 text-center text-sm font-semibold transition-colors'
 const linkActiveClass = 'bg-orange-base text-white'
 const linkInactiveClass = 'text-gray-text hover:bg-orange-base/10 hover:text-orange-base'
 
@@ -80,7 +80,7 @@ export default function Sidebar() {
             >
               {link.label}
               {link.badge > 0 && (
-                <span className="flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-base px-1 text-xs font-semibold text-white">
+                <span className="absolute top-1/2 right-2 flex h-5 min-w-5 -translate-y-1/2 animate-pulse items-center justify-center rounded-full bg-red-base px-1 text-xs font-semibold text-white">
                   {link.badge}
                 </span>
               )}

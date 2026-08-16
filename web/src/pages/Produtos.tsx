@@ -137,7 +137,7 @@ export default function Produtos() {
       <h1 className="mb-4 text-2xl font-semibold text-gray-900">Produtos</h1>
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
-      <div className="mb-6 rounded-xl border border-gray-200 p-4">
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
           Novo produto
         </h2>
@@ -192,7 +192,7 @@ export default function Produtos() {
       {items.length === 0 ? (
         <p className="text-gray-500">Nenhum produto cadastrado.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
