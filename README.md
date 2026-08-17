@@ -54,3 +54,13 @@ neste README). Formato:
 Os quatro primeiros são avançados pelo admin, no dashboard. O último
 (`Entregue`) só é setado quando o supervisor da filial confirma o
 recebimento na tela "Meus pedidos".
+
+## Fluxo de trabalho
+
+O desenvolvimento acontece na branch `dev`; a `main` reflete o que já foi
+revisado. Pra levar uma mudança da `dev` pra `main`:
+
+1. Commite e dê push normalmente estando na `dev`.
+2. Abra um Pull Request no GitHub (`base: main` ← `compare: dev`).
+3. Peça revisão de outro dev antes do merge.
+4. Depois de aprovado, faça o merge (Squash and merge).
