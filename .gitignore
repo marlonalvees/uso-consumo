@@ -13,5 +13,8 @@ dist/
 .DS_Store
 Thumbs.db
 
+# config local do Claude Code (pode conter permissões/credenciais específicas da máquina)
+.claude/
+
 # guia de estudos pessoal (não faz parte do código do projeto)
 GUIA-ESTUDO.md
