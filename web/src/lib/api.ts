@@ -1,6 +1,5 @@
 const BASE_URL = import.meta.env.VITE_API_URL
 const HUB_URL = import.meta.env.VITE_HUB_URL
-const DEV_TOKEN = import.meta.env.DEV ? import.meta.env.VITE_DEV_TOKEN : undefined
 
 export class ApiError extends Error {
   status: number
@@ -10,15 +9,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers = new Headers(options.headers)
-  headers.set('Content-Type', 'application/json')
-  if (DEV_TOKEN) headers.set('Authorization', `Bearer ${DEV_TOKEN}`)
-
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers, credentials: 'include' })
-
+async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
-    if (!import.meta.env.DEV) window.location.href = HUB_URL
+    // Sem token, token inválido ou expirado — a API sempre responde 401 nesses
+    // três casos (ver requireAuth no backend). Manda de volta pro hub pra
+    // logar de novo, em vez de deixar a página presa num estado quebrado.
+    if (HUB_URL) window.location.href = HUB_URL
     throw new ApiError('Não autorizado', 401)
   }
 
@@ -31,6 +27,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T
 }
 
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers)
+  headers.set('Content-Type', 'application/json')
+
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers, credentials: 'include' })
+  return handleResponse<T>(res)
+}
+
+async function upload<T>(path: string, formData: FormData): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', body: formData, credentials: 'include' })
+  return handleResponse<T>(res)
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -38,4 +47,9 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, formData: FormData) => upload<T>(path, formData),
+}
+
+export function assetUrl(relativePath: string): string {
+  return `${BASE_URL}/uploads/${relativePath}`
 }

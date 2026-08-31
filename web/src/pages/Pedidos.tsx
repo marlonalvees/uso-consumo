@@ -1,14 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api'
 import type { Branch } from '../types'
 import { useAuth } from '../context/AuthContext'
+import { useOrders } from '../context/OrdersContext'
+import { useToast } from '../context/ToastContext'
 import NovoPedido from './NovoPedido'
 import MeusPedidos from './MeusPedidos'
 
 type Tab = 'novo' | 'recentes' | 'meus'
 
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'novo', label: 'Novo pedido' },
+  { value: 'recentes', label: 'Pedidos recentes' },
+  { value: 'meus', label: 'Meus pedidos' },
+]
+
 export default function Pedidos() {
   const { user } = useAuth()
+  const { orders } = useOrders()
+  const toast = useToast()
   const isAdmin = user?.isAdmin ?? false
 
   const [branches, setBranches] = useState<Branch[]>([])
@@ -32,9 +42,22 @@ export default function Pedidos() {
         setBranches(data)
         if (data.length > 0) setBranchId(data[0].id)
       })
-      .catch(() => setError('Não foi possível carregar as filiais'))
+      .catch(() => {
+        setError('Não foi possível carregar as filiais')
+        toast.error('Não foi possível carregar as filiais')
+      })
       .finally(() => setLoading(false))
-  }, [isAdmin, user])
+  }, [isAdmin, user, toast])
+
+  const selectedBranchName = branches.find((b) => b.id === branchId)?.name
+
+  const awaitingCount = useMemo(
+    () =>
+      orders.filter(
+        (o) => (branchId ? o.branchId === branchId : true) && o.status === 'ENVIADO',
+      ).length,
+    [orders, branchId],
+  )
 
   if (loading) {
     return <p className="text-gray-500">Carregando...</p>
@@ -42,7 +65,35 @@ export default function Pedidos() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-gray-900">Pedidos</h1>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Pedidos</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Faça pedidos de itens de uso e consumo e acompanhe o andamento.
+          </p>
+        </div>
+
+        {branches.length > 0 && (isAdmin || branches.length > 1) && (
+          <div className="sm:w-64">
+            <label htmlFor="pedidos-branch" className="mb-1 block text-xs font-medium text-gray-500">
+              Filial
+            </label>
+            <select
+              id="pedidos-branch"
+              value={branchId}
+              onChange={(e) => setBranchId(Number(e.target.value))}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+            >
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       {branches.length === 0 ? (
@@ -51,60 +102,35 @@ export default function Pedidos() {
         </p>
       ) : (
         <>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            {(isAdmin || branches.length > 1) && (
-              <select
-                value={branchId}
-                onChange={(e) => setBranchId(Number(e.target.value))}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-              >
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <div className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
+          <div className="mb-6 grid grid-cols-3 gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:inline-grid sm:auto-cols-max sm:grid-flow-col">
+            {TABS.map((t) => (
               <button
+                key={t.value}
                 type="button"
-                onClick={() => setTab('novo')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  tab === 'novo'
+                onClick={() => setTab(t.value)}
+                className={`relative rounded-md px-3 py-2 text-sm font-medium transition sm:px-4 ${
+                  tab === t.value
                     ? 'bg-novamix-teal/10 text-novamix-teal'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                Novo pedido
+                {t.label}
+                {t.value === 'recentes' && awaitingCount > 0 && (
+                  <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-novamix-orange px-1 text-xs font-semibold text-white">
+                    {awaitingCount}
+                  </span>
+                )}
               </button>
-              <button
-                type="button"
-                onClick={() => setTab('recentes')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  tab === 'recentes'
-                    ? 'bg-novamix-teal/10 text-novamix-teal'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Pedidos recentes
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('meus')}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
-                  tab === 'meus'
-                    ? 'bg-novamix-teal/10 text-novamix-teal'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Meus pedidos
-              </button>
-            </div>
+            ))}
           </div>
 
           {tab === 'novo' && (
-            <NovoPedido fixedBranchId={branchId === '' ? undefined : branchId} hideTitle />
+            <NovoPedido
+              fixedBranchId={branchId === '' ? undefined : branchId}
+              fixedBranchName={selectedBranchName}
+              hideTitle
+              onSuccess={() => setTab('recentes')}
+            />
           )}
           {tab === 'recentes' && (
             <MeusPedidos branchId={branchId === '' ? undefined : branchId} hideTitle />

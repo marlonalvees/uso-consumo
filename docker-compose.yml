@@ -8,6 +8,8 @@ services:
       - ./api/.env
     environment:
       PORT: "3001"
+    volumes:
+      - usoconsumo_uploads:/app/src/uploads
     restart: unless-stopped
 
   client:
@@ -20,3 +22,6 @@ services:
     ports:
       - "8087:80"
     restart: unless-stopped
+
+volumes:
+  usoconsumo_uploads:

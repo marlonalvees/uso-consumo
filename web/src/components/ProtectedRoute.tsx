@@ -7,7 +7,17 @@ export default function ProtectedRoute({ adminOnly = false }: { adminOnly?: bool
   if (loading) return null
 
   if (!user) {
-    window.location.href = import.meta.env.VITE_HUB_URL
+    const hubUrl = import.meta.env.VITE_HUB_URL
+    if (!hubUrl) {
+      return (
+        <p className="p-6 text-sm text-red-600">
+          Não foi possível autenticar. Verifique se VITE_API_URL e VITE_HUB_URL estão
+          configurados em web/.env, se a API está acessível e se existe um cookie "token" válido
+          para este domínio.
+        </p>
+      )
+    }
+    window.location.href = hubUrl
     return null
   }
 

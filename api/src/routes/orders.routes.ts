@@ -4,6 +4,7 @@ import {
   createOrder,
   listOrders,
   updateOrderStatus,
+  updateOrderFulfillment,
   confirmDelivery,
 } from '../controllers/orders.controller'
 
@@ -14,6 +15,7 @@ router.use(requireAuth, requireModule)
 router.post('/', requireBranches, createOrder)
 router.get('/', listOrders)
 router.patch('/:id/status', requireAdmin, updateOrderStatus)
+router.patch('/:id/fulfillment', requireAdmin, updateOrderFulfillment)
 router.patch('/:id/confirm-delivery', requireBranches, confirmDelivery)
 
 export default router

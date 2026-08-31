@@ -28,7 +28,7 @@ function ProductTable({ title, items }: { title: string; items: OrderItem[] }) {
             Quanto já tem
           </th>
           <th className="bg-[#1c2b4a] px-3 py-1 text-center text-xs font-semibold text-white">
-            Quantidade solicitada
+            Quantidade
           </th>
         </tr>
       </thead>
@@ -41,7 +41,12 @@ function ProductTable({ title, items }: { title: string; items: OrderItem[] }) {
             <td className="px-3 py-1.5">{orderItem.item.name}</td>
             <td className="px-3 py-1.5" />
             <td className="px-3 py-1.5 text-center font-semibold">
-              {orderItem.quantity} {orderItem.item.unit}
+              {orderItem.quantity} {orderItem.item.packaging.name}
+              {orderItem.quantity !== orderItem.requestedQuantity && (
+                <span className="block text-[10px] font-normal opacity-80">
+                  (pedido: {orderItem.requestedQuantity})
+                </span>
+              )}
             </td>
           </tr>
         ))}
@@ -50,9 +55,24 @@ function ProductTable({ title, items }: { title: string; items: OrderItem[] }) {
   )
 }
 
+function groupByCategory(allItems: OrderItem[]) {
+  const items = allItems.filter((orderItem) => orderItem.quantity > 0)
+  const groups: { key: string; label: string; items: OrderItem[] }[] = []
+  const indexByKey = new Map<string, number>()
+  for (const orderItem of items) {
+    const key = orderItem.item.category.id
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, groups.length)
+      groups.push({ key, label: orderItem.item.category.name, items: [] })
+    }
+    groups[indexByKey.get(key)!].items.push(orderItem)
+  }
+  return groups
+}
+
 export default function OrderPrintSheet({ order }: { order: Order }) {
-  const papelaria = order.items.filter((orderItem) => orderItem.item.category === 'PAPELARIA')
-  const limpeza = order.items.filter((orderItem) => orderItem.item.category === 'LIMPEZA')
+  const groups = groupByCategory(order.items)
+  const extras = order.extraItems.filter((extra) => extra.quantity > 0)
 
   return (
     <div className="mx-auto w-full max-w-[190mm] bg-white p-4 text-gray-900">
@@ -84,10 +104,11 @@ export default function OrderPrintSheet({ order }: { order: Order }) {
         </div>
       </div>
 
-      <ProductTable title="Produtos papelaria" items={papelaria} />
-      <ProductTable title="Produtos limpeza" items={limpeza} />
+      {groups.map((group) => (
+        <ProductTable key={group.key} title={`Produtos ${group.label}`} items={group.items} />
+      ))}
 
-      {order.extraItems.length > 0 && (
+      {extras.length > 0 && (
         <table className="w-full table-fixed border-collapse text-sm">
           <thead>
             <tr>
@@ -97,13 +118,20 @@ export default function OrderPrintSheet({ order }: { order: Order }) {
             </tr>
           </thead>
           <tbody>
-            {order.extraItems.map((extra, index) => (
+            {extras.map((extra, index) => (
               <tr
                 key={extra.id}
                 className={index % 2 === 0 ? 'bg-[#22335a] text-white' : 'bg-gray-100 text-gray-800'}
               >
                 <td className="px-3 py-1.5">{extra.name}</td>
-                <td className="px-3 py-1.5 text-center font-semibold">{extra.quantity}</td>
+                <td className="px-3 py-1.5 text-center font-semibold">
+                  {extra.quantity}
+                  {extra.quantity !== extra.requestedQuantity && (
+                    <span className="ml-1 text-[10px] font-normal opacity-80">
+                      (pedido: {extra.requestedQuantity})
+                    </span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

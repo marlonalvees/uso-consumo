@@ -3,3 +3,7 @@ node_modules
 .env
 
 /src/generated/prisma
+
+# Fotos enviadas de produtos — ficam num volume Docker, não em versionamento
+/src/uploads/produtos/*
+!/src/uploads/produtos/.gitkeep

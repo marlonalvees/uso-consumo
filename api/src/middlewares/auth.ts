@@ -15,7 +15,10 @@ declare global {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const header = req.headers.authorization
-  const token = req.cookies?.token ?? (header?.startsWith('Bearer ') ? header.slice(7) : undefined)
+  // O front-end usa só o cookie. O header Bearer fica disponível como via alternativa pra testar
+  // a API diretamente (curl/Postman); tem prioridade sobre o cookie pra evitar que um cookie
+  // "token" antigo em localhost atrapalhe esses testes manuais.
+  const token = (header?.startsWith('Bearer ') ? header.slice(7) : undefined) ?? req.cookies?.token
 
   if (!token) {
     res.status(401).json({ error: 'Autorização não encontrada' })

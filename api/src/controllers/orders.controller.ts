@@ -5,16 +5,17 @@ import { OrderStatus } from '../generated/prisma/client'
 const ORDER_INCLUDE = {
   branch: { select: { id: true, name: true } },
   requestedBy: { select: { id: true, name: true } },
-  items: { include: { item: true } },
+  items: { include: { item: { include: { category: true, packaging: true } } } },
   extraItems: true,
 } as const
 
 const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
-  OrderStatus.PENDENTE,
-  OrderStatus.EM_SEPARACAO,
-  OrderStatus.AGUARDANDO_ENVIO,
+  OrderStatus.RECEBIDO,
+  OrderStatus.EM_ANDAMENTO,
   OrderStatus.ENVIADO,
 ]
+
+const EDITABLE_STATUSES: OrderStatus[] = [OrderStatus.RECEBIDO, OrderStatus.EM_ANDAMENTO]
 
 export async function createOrder(req: Request, res: Response) {
   const { branchId, items, extras } = req.body as {
@@ -84,12 +85,14 @@ export async function createOrder(req: Request, res: Response) {
         create: (items ?? []).map((entry) => ({
           itemId: entry.itemId!,
           quantity: entry.quantity!,
+          requestedQuantity: entry.quantity!,
         })),
       },
       extraItems: {
         create: validExtras.map((entry) => ({
           name: entry.name!.trim(),
           quantity: entry.quantity!,
+          requestedQuantity: entry.quantity!,
         })),
       },
     },
@@ -127,7 +130,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
     return
   }
 
-  const order = await prisma.order.findUnique({ where: { id } })
+  const order = await prisma.order.findUnique({ where: { id }, include: { items: true } })
   if (!order) {
     res.status(404).json({ error: 'Pedido não encontrado' })
     return
@@ -137,12 +140,149 @@ export async function updateOrderStatus(req: Request, res: Response) {
     return
   }
 
-  const updated = await prisma.order.update({
+  if (status === OrderStatus.ENVIADO) {
+    const alreadyShipped = await prisma.stockMovement.findFirst({ where: { orderId: id, type: 'SAIDA' } })
+    if (!alreadyShipped) {
+      await prisma.$transaction(async (tx) => {
+        for (const orderItem of order.items) {
+          if (orderItem.quantity <= 0) continue
+          await tx.stockMovement.create({
+            data: {
+              itemId: orderItem.itemId,
+              type: 'SAIDA',
+              quantity: orderItem.quantity,
+              reason: 'Pedido enviado',
+              orderId: id,
+            },
+          })
+          await tx.item.update({
+            where: { id: orderItem.itemId },
+            data: { stockQuantity: { decrement: orderItem.quantity } },
+          })
+        }
+        await tx.order.update({ where: { id }, data: { status: status as OrderStatus } })
+      })
+    } else {
+      await prisma.order.update({ where: { id }, data: { status: status as OrderStatus } })
+    }
+  } else {
+    await prisma.order.update({ where: { id }, data: { status: status as OrderStatus } })
+  }
+
+  const updated = await prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE })
+  res.json(updated)
+}
+
+export async function updateOrderFulfillment(req: Request, res: Response) {
+  const id = req.params.id
+  if (typeof id !== 'string') {
+    res.status(400).json({ error: 'Id do pedido inválido' })
+    return
+  }
+
+  const { items, extras } = req.body as {
+    items?: { itemId?: string; quantity?: number }[]
+    extras?: { id?: string; name?: string; quantity?: number }[]
+  }
+
+  const order = await prisma.order.findUnique({
     where: { id },
-    data: { status: status as OrderStatus },
-    include: ORDER_INCLUDE,
+    include: { items: true, extraItems: true },
+  })
+  if (!order) {
+    res.status(404).json({ error: 'Pedido não encontrado' })
+    return
+  }
+  if (!EDITABLE_STATUSES.includes(order.status)) {
+    res.status(400).json({ error: 'Só é possível editar os itens enquanto o pedido está em Recebido ou Em andamento' })
+    return
+  }
+
+  const itemEntries = Array.isArray(items) ? items : []
+  const extraEntries = Array.isArray(extras) ? extras : []
+
+  for (const entry of itemEntries) {
+    if (!entry.itemId || !Number.isInteger(entry.quantity) || (entry.quantity ?? -1) < 0) {
+      res.status(400).json({ error: 'Cada item precisa de itemId e quantity (inteiro >= 0)' })
+      return
+    }
+  }
+  for (const entry of extraEntries) {
+    if (!Number.isInteger(entry.quantity) || (entry.quantity ?? -1) < 0) {
+      res.status(400).json({ error: 'Cada item extra precisa de quantity (inteiro >= 0)' })
+      return
+    }
+    if (!entry.id && !entry.name?.trim()) {
+      res.status(400).json({ error: 'Item extra novo precisa de um nome' })
+      return
+    }
+  }
+
+  const newItemIds = itemEntries.map((e) => e.itemId!)
+  if (newItemIds.length) {
+    const existingCatalogItems = await prisma.item.findMany({ where: { id: { in: newItemIds } } })
+    if (existingCatalogItems.length !== new Set(newItemIds).size) {
+      res.status(400).json({ error: 'Um ou mais itens informados não existem no catálogo' })
+      return
+    }
+  }
+
+  const existingExtraIds = new Set(order.extraItems.map((e) => e.id))
+  for (const entry of extraEntries) {
+    if (entry.id && !existingExtraIds.has(entry.id)) {
+      res.status(400).json({ error: 'Um item extra informado não pertence a este pedido' })
+      return
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const existingByItemId = new Map(order.items.map((oi) => [oi.itemId, oi]))
+    const incomingItemIds = new Set(itemEntries.map((e) => e.itemId!))
+
+    for (const entry of itemEntries) {
+      const existing = existingByItemId.get(entry.itemId!)
+      if (existing) {
+        await tx.orderItem.update({ where: { id: existing.id }, data: { quantity: entry.quantity! } })
+      } else {
+        await tx.orderItem.create({
+          data: { orderId: id, itemId: entry.itemId!, quantity: entry.quantity!, requestedQuantity: 0 },
+        })
+      }
+    }
+    for (const existing of order.items) {
+      if (incomingItemIds.has(existing.itemId)) continue
+      if (existing.requestedQuantity > 0) {
+        await tx.orderItem.update({ where: { id: existing.id }, data: { quantity: 0 } })
+      } else {
+        await tx.orderItem.delete({ where: { id: existing.id } })
+      }
+    }
+
+    const existingExtraById = new Map(order.extraItems.map((e) => [e.id, e]))
+    const incomingExtraIds = new Set(extraEntries.filter((e) => e.id).map((e) => e.id!))
+
+    for (const entry of extraEntries) {
+      if (entry.id) {
+        await tx.orderExtraItem.update({ where: { id: entry.id }, data: { quantity: entry.quantity! } })
+      } else {
+        await tx.orderExtraItem.create({
+          data: { orderId: id, name: entry.name!.trim(), quantity: entry.quantity!, requestedQuantity: 0 },
+        })
+      }
+    }
+    for (const existing of order.extraItems) {
+      if (incomingExtraIds.has(existing.id)) continue
+      if (existing.requestedQuantity > 0) {
+        await tx.orderExtraItem.update({ where: { id: existing.id }, data: { quantity: 0 } })
+      } else {
+        await tx.orderExtraItem.delete({ where: { id: existing.id } })
+      }
+    }
+
+    await tx.order.update({ where: { id }, data: { status: order.status } })
   })
 
+  const updated = await prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE })
   res.json(updated)
 }
 

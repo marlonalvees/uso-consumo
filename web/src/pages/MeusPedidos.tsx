@@ -1,17 +1,23 @@
 import { useState } from 'react';
 import { ApiError, api } from '../lib/api';
-import type { Order } from '../types';
+import type { Order, OrderStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrdersContext';
+import { useToast } from '../context/ToastContext';
+import { STATUS_LABELS, STATUS_ORDER } from '../lib/orderStatus';
+import { DATE_PRESET_OPTIONS, matchesDatePreset, type DatePreset } from '../lib/dateFilter';
+import { normalizeText } from '../lib/text';
 import OrderStatusTimeline from '../components/OrderStatusTimeline';
 import OrderPrintSheet from '../components/OrderPrintSheet';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { SearchIcon } from '../components/icons';
 import { usePrintOrder } from '../hooks/usePrintOrder';
 
 interface OrderCardProps {
   order: Order;
   highlighted?: boolean;
   confirmingId: string | null;
-  onConfirm: (orderId: string) => void;
+  onConfirm: (order: Order) => void;
   onPrint: (order: Order) => void;
   readOnly?: boolean;
 }
@@ -47,7 +53,7 @@ function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, readO
       <ul className="mb-3 space-y-1 text-sm text-gray-700">
         {order.items.map((orderItem) => (
           <li key={orderItem.id}>
-            {orderItem.quantity}x {orderItem.item.name} ({orderItem.item.unit})
+            {orderItem.quantity}x {orderItem.item.name} ({orderItem.item.packaging.name})
           </li>
         ))}
         {order.extraItems.map((extraItem) => (
@@ -60,7 +66,7 @@ function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, readO
         {!readOnly && order.status === 'ENVIADO' && (
           <button
             type="button"
-            onClick={() => onConfirm(order.id)}
+            onClick={() => onConfirm(order)}
             disabled={confirmingId === order.id}
             className="rounded-lg bg-novamix-teal px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
           >
@@ -121,20 +127,34 @@ export default function MeusPedidos({
 }: MeusPedidosProps = {}) {
   const { user } = useAuth();
   const { orders: allOrders, loadingOrders: loading, updateOrder } = useOrders();
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<Order | null>(null);
   const { printingOrder, printOrder } = usePrintOrder();
 
-  async function handleConfirm(orderId: string) {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
+  const [datePreset, setDatePreset] = useState<DatePreset>('todos');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+
+  function handleRequestConfirm(order: Order) {
+    setConfirmTarget(order);
+  }
+
+  async function handleConfirmDelivery() {
+    if (!confirmTarget) return;
+    const orderId = confirmTarget.id;
     setConfirmingId(orderId);
-    setError(null);
     try {
       const updated = await api.patch<Order>(
         `/orders/${orderId}/confirm-delivery`,
       );
       updateOrder(updated);
+      toast.success('Entrega confirmada com sucesso!');
+      setConfirmTarget(null);
     } catch (err) {
-      setError(
+      toast.error(
         err instanceof ApiError
           ? err.message
           : 'Não foi possível confirmar a entrega',
@@ -151,8 +171,21 @@ export default function MeusPedidos({
   const scopedOrders = allOrders
     .filter((order) => (branchId ? order.branchId === branchId : true))
     .filter((order) => (onlyMine ? order.requestedBy.id === user?.id : true));
-  const awaitingConfirmation = scopedOrders.filter((order) => order.status === 'ENVIADO');
-  const remainingOrders = scopedOrders.filter((order) => order.status !== 'ENVIADO');
+
+  const normalizedSearch = normalizeText(search);
+  const filteredOrders = scopedOrders.filter((order) => {
+    if (statusFilter && order.status !== statusFilter) return false
+    if (!matchesDatePreset(order.createdAt, datePreset, customStart, customEnd)) return false
+    if (normalizedSearch) {
+      const matchesItem =
+        order.items.some((oi) => normalizeText(oi.item.name).includes(normalizedSearch)) ||
+        order.extraItems.some((ei) => normalizeText(ei.name).includes(normalizedSearch))
+      if (!matchesItem) return false
+    }
+    return true
+  });
+  const awaitingConfirmation = filteredOrders.filter((order) => order.status === 'ENVIADO');
+  const remainingOrders = filteredOrders.filter((order) => order.status !== 'ENVIADO');
   const monthGroups = groupOrdersByMonth(remainingOrders);
 
   return (
@@ -163,9 +196,77 @@ export default function MeusPedidos({
             Meus pedidos
           </h1>
         )}
-        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
         {scopedOrders.length === 0 && (
           <p className="text-gray-500">Nenhum pedido feito ainda.</p>
+        )}
+
+        {scopedOrders.length > 0 && (
+          <div className="mb-6 space-y-3">
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                <SearchIcon className="h-4 w-4" />
+              </span>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por item pedido..."
+                className="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal sm:max-w-sm"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-white p-1">
+              {DATE_PRESET_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setDatePreset(option.value)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                    datePreset === option.value
+                      ? 'bg-novamix-teal/10 text-novamix-teal'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {datePreset === 'periodo' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+                <span className="text-sm text-gray-500">até</span>
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                />
+              </div>
+            )}
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <option value="">Todos os estágios</option>
+              {STATUS_ORDER.map((status) => (
+                <option key={status} value={status}>
+                  {STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {scopedOrders.length > 0 && filteredOrders.length === 0 && (
+          <p className="text-gray-500">Nenhum pedido encontrado com esses filtros.</p>
         )}
 
         {awaitingConfirmation.length > 0 && (
@@ -183,7 +284,7 @@ export default function MeusPedidos({
                   order={order}
                   highlighted
                   confirmingId={confirmingId}
-                  onConfirm={handleConfirm}
+                  onConfirm={handleRequestConfirm}
                   onPrint={printOrder}
                   readOnly={readOnly}
                 />
@@ -210,7 +311,7 @@ export default function MeusPedidos({
                     key={order.id}
                     order={order}
                     confirmingId={confirmingId}
-                    onConfirm={handleConfirm}
+                    onConfirm={handleRequestConfirm}
                     onPrint={printOrder}
                     readOnly={readOnly}
                   />
@@ -224,6 +325,21 @@ export default function MeusPedidos({
       <div className="hidden print:block">
         {printingOrder && <OrderPrintSheet order={printingOrder} />}
       </div>
+
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title="Confirmar recebimento"
+        message={
+          <>
+            Confirma que o pedido da filial <strong>{confirmTarget?.branch.name}</strong> foi
+            recebido? Essa ação não pode ser desfeita.
+          </>
+        }
+        confirmLabel="Confirmar recebimento"
+        loading={confirmingId === confirmTarget?.id}
+        onConfirm={handleConfirmDelivery}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }

@@ -1,45 +1,96 @@
 import type { Request, Response } from 'express'
+import multer from 'multer'
 import { prisma } from '../lib/prisma'
-import { ItemCategory, Prisma } from '../generated/prisma/client'
+import { Prisma } from '../generated/prisma/client'
+import { uploadProductPhoto, deleteProductPhoto } from '../middlewares/upload'
+
+const ITEM_INCLUDE = {
+  category: true,
+  packaging: true,
+  supplier: { select: { id: true, name: true } },
+} as const
 
 export async function listItems(req: Request, res: Response) {
   const isAdmin = req.moduleAccess === 'admin'
   const items = await prisma.item.findMany({
     where: isAdmin ? {} : { active: true },
+    include: ITEM_INCLUDE,
     orderBy: { name: 'asc' },
   })
   res.json(items)
 }
 
-export async function createItem(req: Request, res: Response) {
-  const { name, unit, category, price } = req.body as {
-    name?: string
-    unit?: string
-    category?: string
-    price?: number
+interface ItemBody {
+  name?: string
+  packagingId?: string
+  categoryId?: string
+  supplierId?: string | null
+  price?: number
+  active?: boolean
+  minStock?: number
+  targetStock?: number | null
+}
+
+async function validateItemBody(
+  body: ItemBody,
+  { requireName, requirePackaging, requireCategory }: { requireName: boolean; requirePackaging: boolean; requireCategory: boolean },
+): Promise<string | null> {
+  const { name, packagingId, categoryId, supplierId, price, minStock, targetStock } = body
+
+  if (requireName && !name?.trim()) return 'name é obrigatório'
+  if (name !== undefined && !name.trim()) return 'name não pode ser vazio'
+
+  if (requirePackaging && !packagingId) return 'packagingId é obrigatório'
+  if (packagingId !== undefined) {
+    const packaging = await prisma.packaging.findUnique({ where: { id: packagingId } })
+    if (!packaging) return 'Embalagem informada não existe'
   }
 
-  if (!name?.trim() || !unit?.trim()) {
-    res.status(400).json({ error: 'name e unit são obrigatórios' })
-    return
+  if (requireCategory && !categoryId) return 'categoryId é obrigatório'
+  if (categoryId !== undefined) {
+    const category = await prisma.itemCategory.findUnique({ where: { id: categoryId } })
+    if (!category) return 'Categoria informada não existe'
   }
-  if (category && !Object.values(ItemCategory).includes(category as ItemCategory)) {
-    res.status(400).json({ error: `category deve ser um de: ${Object.values(ItemCategory).join(', ')}` })
-    return
+
+  if (supplierId !== undefined && supplierId !== null) {
+    const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } })
+    if (!supplier) return 'Fornecedor informado não existe'
   }
+
   if (price !== undefined && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) {
-    res.status(400).json({ error: 'price deve ser um número maior ou igual a 0' })
+    return 'price deve ser um número maior ou igual a 0'
+  }
+  if (minStock !== undefined && (!Number.isInteger(minStock) || minStock < 0)) {
+    return 'minStock deve ser um inteiro maior ou igual a 0'
+  }
+  if (targetStock !== undefined && targetStock !== null && (!Number.isInteger(targetStock) || targetStock < 0)) {
+    return 'targetStock deve ser um inteiro maior ou igual a 0'
+  }
+
+  return null
+}
+
+export async function createItem(req: Request, res: Response) {
+  const body = req.body as ItemBody
+
+  const error = await validateItemBody(body, { requireName: true, requirePackaging: true, requireCategory: true })
+  if (error) {
+    res.status(400).json({ error })
     return
   }
 
   try {
     const item = await prisma.item.create({
       data: {
-        name: name.trim(),
-        unit: unit.trim(),
-        category: (category as ItemCategory) ?? undefined,
-        price: price ?? undefined,
+        name: body.name!.trim(),
+        packagingId: body.packagingId!,
+        categoryId: body.categoryId!,
+        supplierId: body.supplierId ?? undefined,
+        price: body.price ?? undefined,
+        minStock: body.minStock ?? undefined,
+        targetStock: body.targetStock ?? undefined,
       },
+      include: ITEM_INCLUDE,
     })
     res.status(201).json(item)
   } catch (err) {
@@ -58,28 +109,11 @@ export async function updateItem(req: Request, res: Response) {
     return
   }
 
-  const { name, unit, category, active, price } = req.body as {
-    name?: string
-    unit?: string
-    category?: string
-    active?: boolean
-    price?: number
-  }
+  const body = req.body as ItemBody
 
-  if (name !== undefined && !name.trim()) {
-    res.status(400).json({ error: 'name não pode ser vazio' })
-    return
-  }
-  if (unit !== undefined && !unit.trim()) {
-    res.status(400).json({ error: 'unit não pode ser vazio' })
-    return
-  }
-  if (category !== undefined && !Object.values(ItemCategory).includes(category as ItemCategory)) {
-    res.status(400).json({ error: `category deve ser um de: ${Object.values(ItemCategory).join(', ')}` })
-    return
-  }
-  if (price !== undefined && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) {
-    res.status(400).json({ error: 'price deve ser um número maior ou igual a 0' })
+  const error = await validateItemBody(body, { requireName: false, requirePackaging: false, requireCategory: false })
+  if (error) {
+    res.status(400).json({ error })
     return
   }
 
@@ -93,12 +127,16 @@ export async function updateItem(req: Request, res: Response) {
     const item = await prisma.item.update({
       where: { id },
       data: {
-        name: name?.trim(),
-        unit: unit?.trim(),
-        category: category as ItemCategory | undefined,
-        active,
-        price,
+        name: body.name?.trim(),
+        packagingId: body.packagingId,
+        categoryId: body.categoryId,
+        supplierId: body.supplierId,
+        active: body.active,
+        price: body.price,
+        minStock: body.minStock,
+        targetStock: body.targetStock,
       },
+      include: ITEM_INCLUDE,
     })
     res.json(item)
   } catch (err) {
@@ -108,6 +146,70 @@ export async function updateItem(req: Request, res: Response) {
     }
     throw err
   }
+}
+
+export function uploadItemPhoto(req: Request, res: Response) {
+  const id = req.params.id
+  if (typeof id !== 'string') {
+    res.status(400).json({ error: 'Id do item inválido' })
+    return
+  }
+
+  uploadProductPhoto(req, res, async (err: unknown) => {
+    if (err) {
+      const message =
+        err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE'
+          ? 'Imagem muito grande — máximo 5MB'
+          : err instanceof Error
+            ? err.message
+            : 'Não foi possível enviar a imagem'
+      res.status(400).json({ error: message })
+      return
+    }
+    if (!req.file) {
+      res.status(400).json({ error: 'Envie uma imagem no campo "photo"' })
+      return
+    }
+
+    const relativePath = `produtos/${req.file.filename}`
+    const existing = await prisma.item.findUnique({ where: { id } })
+    if (!existing) {
+      deleteProductPhoto(relativePath)
+      res.status(404).json({ error: 'Item não encontrado' })
+      return
+    }
+
+    if (existing.photoPath) deleteProductPhoto(existing.photoPath)
+
+    const item = await prisma.item.update({
+      where: { id },
+      data: { photoPath: relativePath },
+      include: ITEM_INCLUDE,
+    })
+    res.json(item)
+  })
+}
+
+export async function removeItemPhoto(req: Request, res: Response) {
+  const id = req.params.id
+  if (typeof id !== 'string') {
+    res.status(400).json({ error: 'Id do item inválido' })
+    return
+  }
+
+  const existing = await prisma.item.findUnique({ where: { id } })
+  if (!existing) {
+    res.status(404).json({ error: 'Item não encontrado' })
+    return
+  }
+  if (existing.photoPath) deleteProductPhoto(existing.photoPath)
+
+  const item = await prisma.item.update({
+    where: { id },
+    data: { photoPath: null },
+    include: ITEM_INCLUDE,
+  })
+  res.json(item)
 }
 
 export async function deleteItem(req: Request, res: Response) {
@@ -125,10 +227,15 @@ export async function deleteItem(req: Request, res: Response) {
 
   try {
     await prisma.item.delete({ where: { id } })
+    if (existing.photoPath) deleteProductPhoto(existing.photoPath)
     res.status(204).send()
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
-      const item = await prisma.item.update({ where: { id }, data: { active: false } })
+      const item = await prisma.item.update({
+        where: { id },
+        data: { active: false },
+        include: ITEM_INCLUDE,
+      })
       res.status(200).json({
         ...item,
         warning: 'Item já foi usado em pedidos e não pode ser apagado — foi apenas desativado',

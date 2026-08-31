@@ -51,10 +51,9 @@ const STEPS: Step[] = [
 
 function stepIndexForStatus(status: OrderStatus): number {
   switch (status) {
-    case 'PENDENTE':
+    case 'RECEBIDO':
       return 0
-    case 'EM_SEPARACAO':
-    case 'AGUARDANDO_ENVIO':
+    case 'EM_ANDAMENTO':
       return 1
     case 'ENVIADO':
       return 2

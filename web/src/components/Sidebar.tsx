@@ -36,6 +36,7 @@ export default function Sidebar() {
         { to: '/dashboard', label: 'Dashboard', badge: 0 },
         { to: '/pedidos', label: 'Pedidos', badge: 0 },
         { to: '/administracao', label: 'Administração', badge: 0 },
+        { to: '/cadastros', label: 'Cadastros', badge: 0 },
       ]
     : [
         { to: '/dashboard', label: 'Dashboard', badge: 0 },
@@ -47,7 +48,7 @@ export default function Sidebar() {
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className="fixed top-4 left-4 z-50 rounded-md bg-orange-base p-2 text-white shadow-lg transition-colors hover:bg-orange-light lg:hidden"
+        className="fixed top-[calc(1rem+env(safe-area-inset-top))] left-[calc(1rem+env(safe-area-inset-left))] z-50 rounded-md bg-orange-base p-2.5 text-white shadow-lg transition-colors hover:bg-orange-light lg:hidden"
         aria-label={isOpen ? 'Fechar menu' : 'Abrir menu'}
       >
         {isOpen ? <CloseIcon className="h-6 w-6" /> : <MenuIcon className="h-6 w-6" />}
@@ -61,7 +62,7 @@ export default function Sidebar() {
       />
 
       <aside
-        className={`fixed top-0 left-0 z-40 flex h-dvh w-64 flex-col border-r border-gray-base/30 bg-white shadow-sm transition-transform duration-300 ease-in-out lg:z-auto lg:translate-x-0 ${
+        className={`fixed top-0 left-0 z-40 flex h-dvh w-64 flex-col border-r border-gray-base/30 bg-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-sm transition-transform duration-300 ease-in-out lg:z-auto lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

@@ -4,7 +4,12 @@ Sistema interno para as filiais pedirem itens de uso e consumo (papel A4,
 cloro, espanador etc. — lista fictícia por enquanto). Cada filial tem um
 login próprio de supervisor e faz pedidos pelo celular; a central acompanha
 tudo em uma dashboard, com o estágio de cada pedido evoluindo de
-**Pendente** até **Entregue** (confirmado pelo próprio supervisor).
+**Recebido** até **Entregue** (confirmado pelo próprio supervisor).
+
+A central também controla estoque: cada produto tem fornecedor e estoque
+mínimo cadastrados, compras dão entrada no estoque, pedidos enviados dão
+saída, e há um relatório de recomendação de compra baseado no estoque
+mínimo de cada item.
 
 ## Estrutura
 
@@ -49,9 +54,14 @@ neste README). Formato:
 
 ## Estágios do pedido
 
-`Pendente` → `Em separação` → `Aguardando envio` → `Enviado` → `Entregue`
+`Recebido` → `Em andamento` → `Enviado` → `Entregue`
 
-Os quatro primeiros são avançados pelo admin, no dashboard. O último
+Os três primeiros são avançados pelo admin, na Administração ("Gestão de
+pedidos"). Enquanto o pedido está em `Recebido` ou `Em andamento`, o admin
+pode ajustar os itens/quantidades (adicionar, remover, alterar) pra refletir
+o que realmente será enviado — nem sempre o que a filial pediu é o que a
+central tem em estoque. Ao marcar como `Enviado`, o estoque dos itens é
+baixado e o pedido não pode mais ser editado. O último estágio
 (`Entregue`) só é setado quando o supervisor da filial confirma o
 recebimento na tela "Meus pedidos".
 

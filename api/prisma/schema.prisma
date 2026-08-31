@@ -19,9 +19,8 @@ datasource db {
 }
 
 enum OrderStatus {
-  PENDENTE
-  EM_SEPARACAO
-  AGUARDANDO_ENVIO
+  RECEBIDO
+  EM_ANDAMENTO
   ENVIADO
   ENTREGUE
 
@@ -29,11 +28,11 @@ enum OrderStatus {
   @@schema("uso_consumo")
 }
 
-enum ItemCategory {
-  PAPELARIA
-  LIMPEZA
+enum StockMovementType {
+  ENTRADA
+  SAIDA
 
-  @@map("item_category")
+  @@map("stock_movement_type")
   @@schema("uso_consumo")
 }
 
@@ -57,55 +56,144 @@ model User {
   @@schema("public")
 }
 
+model ItemCategory {
+  id    String @id @default(cuid())
+  name  String @unique
+  items Item[]
+
+  @@map("item_category")
+  @@schema("uso_consumo")
+}
+
+model Packaging {
+  id    String @id @default(cuid())
+  name  String @unique
+  items Item[]
+
+  @@map("packaging")
+  @@schema("uso_consumo")
+}
+
+model Supplier {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  cnpj      String?    @unique
+  phone     String?
+  email     String?
+  active    Boolean    @default(true)
+  items     Item[]
+  purchases Purchase[]
+
+  @@map("supplier")
+  @@schema("uso_consumo")
+}
+
 model Item {
-  id         String       @id @default(cuid())
-  name       String       @unique
-  unit       String
-  price      Float        @default(0)
-  category   ItemCategory @default(LIMPEZA)
-  active     Boolean      @default(true)
-  orderItems OrderItem[]
+  id             String          @id @default(cuid())
+  name           String          @unique
+  photoPath      String?         @map("photo_path")
+  packaging      Packaging       @relation(fields: [packagingId], references: [id])
+  packagingId    String          @map("packaging_id")
+  price          Float           @default(0)
+  category       ItemCategory    @relation(fields: [categoryId], references: [id])
+  categoryId     String          @map("category_id")
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  supplierId     String?         @map("supplier_id")
+  active         Boolean         @default(true)
+  stockQuantity  Int             @default(0) @map("stock_quantity")
+  minStock       Int             @default(0) @map("min_stock")
+  targetStock    Int?            @map("target_stock")
+  orderItems     OrderItem[]
+  purchaseItems  PurchaseItem[]
+  stockMovements StockMovement[]
 
   @@map("item")
   @@schema("uso_consumo")
 }
 
 model Order {
-  id            String           @id @default(cuid())
-  branch        Branch           @relation(fields: [branchId], references: [id])
-  branchId      Int              @map("branch_id")
-  requestedBy   User             @relation(fields: [requestedById], references: [id])
-  requestedById Int              @map("user_hub_id")
-  status        OrderStatus      @default(PENDENTE)
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  deliveredAt   DateTime?        @map("delivered_at")
-  items         OrderItem[]
-  extraItems    OrderExtraItem[]
+  id             String           @id @default(cuid())
+  branch         Branch           @relation(fields: [branchId], references: [id])
+  branchId       Int              @map("branch_id")
+  requestedBy    User             @relation(fields: [requestedById], references: [id])
+  requestedById  Int              @map("user_hub_id")
+  status         OrderStatus      @default(RECEBIDO)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  deliveredAt    DateTime?        @map("delivered_at")
+  items          OrderItem[]
+  extraItems     OrderExtraItem[]
+  stockMovements StockMovement[]
 
   @@map("order")
   @@schema("uso_consumo")
 }
 
 model OrderItem {
-  id       String @id @default(cuid())
-  order    Order  @relation(fields: [orderId], references: [id])
-  orderId  String @map("order_id")
-  item     Item   @relation(fields: [itemId], references: [id])
-  itemId   String @map("item_id")
-  quantity Int
+  id                String @id @default(cuid())
+  order             Order  @relation(fields: [orderId], references: [id])
+  orderId           String @map("order_id")
+  item              Item   @relation(fields: [itemId], references: [id])
+  itemId            String @map("item_id")
+  requestedQuantity Int    @map("requested_quantity")
+  quantity          Int
 
   @@map("order_item")
   @@schema("uso_consumo")
 }
 
 model OrderExtraItem {
-  id       String @id @default(cuid())
-  order    Order  @relation(fields: [orderId], references: [id])
-  orderId  String @map("order_id")
-  name     String
-  quantity Int
+  id                String @id @default(cuid())
+  order             Order  @relation(fields: [orderId], references: [id])
+  orderId           String @map("order_id")
+  name              String
+  requestedQuantity Int    @map("requested_quantity")
+  quantity          Int
 
   @@map("order_extra_item")
+  @@schema("uso_consumo")
+}
+
+model Purchase {
+  id             String          @id @default(cuid())
+  supplier       Supplier        @relation(fields: [supplierId], references: [id])
+  supplierId     String          @map("supplier_id")
+  notes          String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  items          PurchaseItem[]
+  stockMovements StockMovement[]
+
+  @@map("purchase")
+  @@schema("uso_consumo")
+}
+
+model PurchaseItem {
+  id         String   @id @default(cuid())
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  purchaseId String   @map("purchase_id")
+  item       Item     @relation(fields: [itemId], references: [id])
+  itemId     String   @map("item_id")
+  quantity   Int
+  unitCost   Float?   @map("unit_cost")
+
+  @@map("purchase_item")
+  @@schema("uso_consumo")
+}
+
+/// Registro de entrada/saída de estoque — entrada vem de Purchase, saída vem de Order (ao marcar Enviado).
+model StockMovement {
+  id         String            @id @default(cuid())
+  item       Item              @relation(fields: [itemId], references: [id])
+  itemId     String            @map("item_id")
+  type       StockMovementType
+  quantity   Int
+  reason     String
+  purchase   Purchase?         @relation(fields: [purchaseId], references: [id])
+  purchaseId String?           @map("purchase_id")
+  order      Order?            @relation(fields: [orderId], references: [id])
+  orderId    String?           @map("order_id")
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  @@map("stock_movement")
   @@schema("uso_consumo")
 }

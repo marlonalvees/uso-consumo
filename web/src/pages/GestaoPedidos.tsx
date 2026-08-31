@@ -1,81 +1,76 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import type { Order, OrderStatus } from '../types'
-import { STATUS_LABELS, STATUS_STYLES } from '../lib/orderStatus'
+import { DATE_PRESET_OPTIONS, matchesDatePreset, type DatePreset } from '../lib/dateFilter'
 import OrderPrintSheet from '../components/OrderPrintSheet'
+import OrderFulfillmentModal from '../components/OrderFulfillmentModal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { usePrintOrder } from '../hooks/usePrintOrder'
+import { useToast } from '../context/ToastContext'
 
-const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
-  'PENDENTE',
-  'EM_SEPARACAO',
-  'AGUARDANDO_ENVIO',
-  'ENVIADO',
+const COLUMNS: { status: OrderStatus; label: string }[] = [
+  { status: 'RECEBIDO', label: 'Recebidos' },
+  { status: 'EM_ANDAMENTO', label: 'Em andamento' },
+  { status: 'ENVIADO', label: 'Enviados' },
+  { status: 'ENTREGUE', label: 'Entregues' },
 ]
 
-type DatePreset = 'todos' | 'hoje' | 'ontem' | 'semana' | 'mes' | 'periodo'
-
-const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'hoje', label: 'Hoje' },
-  { value: 'ontem', label: 'Ontem' },
-  { value: 'semana', label: 'Essa semana' },
-  { value: 'mes', label: 'Esse mês' },
-  { value: 'periodo', label: 'Período' },
-]
-
-function startOfDay(date: Date) {
-  const copy = new Date(date)
-  copy.setHours(0, 0, 0, 0)
-  return copy
+interface OrderCardProps {
+  order: Order
+  updating: boolean
+  onEditItems?: () => void
+  onAdvance?: { label: string; onClick: () => void }
+  onPrint: () => void
 }
 
-function startOfWeek(date: Date) {
-  const copy = startOfDay(date)
-  const day = copy.getDay()
-  const diffToMonday = day === 0 ? 6 : day - 1
-  copy.setDate(copy.getDate() - diffToMonday)
-  return copy
-}
+function OrderCard({ order, updating, onEditItems, onAdvance, onPrint }: OrderCardProps) {
+  const totalQty =
+    order.items.reduce((sum, i) => sum + i.quantity, 0) +
+    order.extraItems.reduce((sum, i) => sum + i.quantity, 0)
+  const itemsLabel =
+    [
+      ...order.items.filter((i) => i.quantity > 0).map((i) => `${i.quantity}x ${i.item.name}`),
+      ...order.extraItems.filter((i) => i.quantity > 0).map((i) => `${i.quantity}x ${i.name}`),
+    ].join(', ') || 'Sem itens confirmados'
 
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function matchesDatePreset(
-  dateIso: string,
-  preset: DatePreset,
-  customStart: string,
-  customEnd: string,
-): boolean {
-  if (preset === 'todos') return true
-
-  const date = new Date(dateIso)
-  const now = new Date()
-
-  if (preset === 'hoje') {
-    return startOfDay(date).getTime() === startOfDay(now).getTime()
-  }
-  if (preset === 'ontem') {
-    const yesterday = new Date(now)
-    yesterday.setDate(yesterday.getDate() - 1)
-    return startOfDay(date).getTime() === startOfDay(yesterday).getTime()
-  }
-  if (preset === 'semana') {
-    return date >= startOfWeek(now)
-  }
-  if (preset === 'mes') {
-    return date >= startOfMonth(now)
-  }
-  if (preset === 'periodo') {
-    if (customStart && date < startOfDay(new Date(customStart))) return false
-    if (customEnd) {
-      const end = new Date(customEnd)
-      end.setHours(23, 59, 59, 999)
-      if (date > end) return false
-    }
-    return true
-  }
-  return true
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+      <p className="text-sm font-semibold text-gray-900">{order.branch.name}</p>
+      <p className="text-xs text-gray-500">
+        {new Date(order.createdAt).toLocaleDateString('pt-BR')} · {order.requestedBy.name}
+      </p>
+      <p className="mt-2 line-clamp-3 text-xs text-gray-600">{itemsLabel}</p>
+      <p className="mt-1 text-xs text-gray-400">{totalQty} unidades no total</p>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {onEditItems && (
+          <button
+            type="button"
+            onClick={onEditItems}
+            className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+          >
+            Editar itens
+          </button>
+        )}
+        {onAdvance && (
+          <button
+            type="button"
+            onClick={onAdvance.onClick}
+            disabled={updating}
+            className="rounded-lg bg-novamix-teal px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
+          >
+            {updating ? 'Aguarde...' : onAdvance.label}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onPrint}
+          className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50"
+        >
+          Imprimir
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function GestaoPedidos() {
@@ -83,7 +78,10 @@ export default function GestaoPedidos() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null)
+  const [confirmShip, setConfirmShip] = useState<Order | null>(null)
   const { printingOrder, printOrder } = usePrintOrder()
+  const toast = useToast()
 
   const [datePreset, setDatePreset] = useState<DatePreset>('todos')
   const [customStart, setCustomStart] = useState('')
@@ -92,25 +90,38 @@ export default function GestaoPedidos() {
   const [filterUser, setFilterUser] = useState<number | ''>('')
   const [filterItem, setFilterItem] = useState('')
 
-  useEffect(() => {
+  function loadOrders() {
     api
       .get<Order[]>('/orders')
       .then(setOrders)
       .catch(() => setError('Não foi possível carregar os pedidos'))
       .finally(() => setLoading(false))
-  }, [])
+  }
 
-  async function handleStatusChange(orderId: string, status: OrderStatus) {
+  useEffect(loadOrders, [])
+
+  async function handleStatusChange(orderId: string, status: OrderStatus, successMessage: string) {
     setUpdatingId(orderId)
-    setError(null)
     try {
       const updated = await api.patch<Order>(`/orders/${orderId}/status`, { status })
       setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)))
+      toast.success(successMessage)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível atualizar o status')
+      toast.error(err instanceof ApiError ? err.message : 'Não foi possível atualizar o status')
     } finally {
       setUpdatingId(null)
     }
+  }
+
+  async function handleConfirmShip() {
+    if (!confirmShip) return
+    await handleStatusChange(confirmShip.id, 'ENVIADO', 'Pedido marcado como enviado')
+    setConfirmShip(null)
+  }
+
+  function handleFulfillmentSaved(updated: Order) {
+    setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+    setEditingOrder(null)
   }
 
   const branchOptions = useMemo(() => {
@@ -150,6 +161,11 @@ export default function GestaoPedidos() {
   if (loading) {
     return <p className="text-gray-500">Carregando pedidos...</p>
   }
+
+  const columns = COLUMNS.map((col) => ({
+    ...col,
+    orders: filteredOrders.filter((o) => o.status === col.status),
+  }))
 
   return (
     <div>
@@ -241,82 +257,75 @@ export default function GestaoPedidos() {
         ) : filteredOrders.length === 0 ? (
           <p className="text-gray-500">Nenhum pedido encontrado com esses filtros.</p>
         ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Filial</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Solicitante</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Data</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Itens</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Qtd. total</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-500">Estágio</th>
-                <th className="px-4 py-2 text-left font-medium text-gray-500"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredOrders.map((order) => {
-                const totalQty =
-                  order.items.reduce((sum, i) => sum + i.quantity, 0) +
-                  order.extraItems.reduce((sum, i) => sum + i.quantity, 0)
-                const itemsLabel = [
-                  ...order.items.map((i) => `${i.quantity}x ${i.item.name}`),
-                  ...order.extraItems.map((i) => `${i.quantity}x ${i.name} (extra)`),
-                ].join(', ')
-                return (
-                  <tr key={order.id}>
-                    <td className="px-4 py-3 font-medium text-gray-900">{order.branch.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{order.requestedBy.name}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-gray-600">
-                      {new Date(order.createdAt).toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{itemsLabel}</td>
-                    <td className="px-4 py-3 text-gray-600">{totalQty}</td>
-                    <td className="px-4 py-3">
-                      {order.status === 'ENTREGUE' ? (
-                        <span
-                          className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[order.status]}`}
-                        >
-                          {STATUS_LABELS[order.status]}
-                        </span>
-                      ) : (
-                        <select
-                          value={order.status}
-                          disabled={updatingId === order.id}
-                          onChange={(e) =>
-                            handleStatusChange(order.id, e.target.value as OrderStatus)
-                          }
-                          className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                        >
-                          {ADMIN_SETTABLE_STATUSES.map((status) => (
-                            <option key={status} value={status}>
-                              {STATUS_LABELS[status]}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => printOrder(order)}
-                        className="rounded-lg border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-                      >
-                        Imprimir
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+            {columns.map((col) => (
+              <div key={col.status} className="flex min-w-0 flex-col rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-700">{col.label}</h2>
+                  <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-500">
+                    {col.orders.length}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-3 lg:max-h-[70vh] lg:overflow-y-auto lg:pr-1">
+                  {col.orders.length === 0 ? (
+                    <p className="text-xs text-gray-400">Nenhum pedido nesta etapa.</p>
+                  ) : (
+                    col.orders.map((order) => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        updating={updatingId === order.id}
+                        onPrint={() => printOrder(order)}
+                        onEditItems={
+                          col.status === 'RECEBIDO' || col.status === 'EM_ANDAMENTO'
+                            ? () => setEditingOrder(order)
+                            : undefined
+                        }
+                        onAdvance={
+                          col.status === 'RECEBIDO'
+                            ? {
+                                label: 'Iniciar separação',
+                                onClick: () =>
+                                  handleStatusChange(order.id, 'EM_ANDAMENTO', 'Pedido em separação'),
+                              }
+                            : col.status === 'EM_ANDAMENTO'
+                              ? { label: 'Marcar como enviado', onClick: () => setConfirmShip(order) }
+                              : undefined
+                        }
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="hidden print:block">
         {printingOrder && <OrderPrintSheet order={printingOrder} />}
       </div>
+
+      <OrderFulfillmentModal
+        order={editingOrder}
+        onClose={() => setEditingOrder(null)}
+        onSaved={handleFulfillmentSaved}
+      />
+
+      <ConfirmDialog
+        open={confirmShip !== null}
+        title="Marcar pedido como enviado"
+        message={
+          <>
+            Confirma o envio do pedido da filial <strong>{confirmShip?.branch.name}</strong>? O
+            estoque dos itens será baixado e o pedido não poderá mais ser editado.
+          </>
+        }
+        confirmLabel="Marcar como enviado"
+        loading={updatingId === confirmShip?.id}
+        onConfirm={handleConfirmShip}
+        onCancel={() => setConfirmShip(null)}
+      />
     </div>
   )
 }

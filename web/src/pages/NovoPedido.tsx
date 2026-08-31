@@ -1,17 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import type { ItemCategory, Order } from '../types'
+import type { Order } from '../types'
 import { useOrders } from '../context/OrdersContext'
 import { useItems } from '../context/ItemsContext'
 import { useAuth } from '../context/AuthContext'
-
-const CATEGORY_LABELS: Record<ItemCategory, string> = {
-  PAPELARIA: 'Produtos Papelaria',
-  LIMPEZA: 'Produtos Limpeza',
-}
-
-const CATEGORY_ORDER: ItemCategory[] = ['PAPELARIA', 'LIMPEZA']
+import { useToast } from '../context/ToastContext'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { SearchIcon } from '../components/icons'
+import { normalizeText } from '../lib/text'
 
 interface ExtraRow {
   id: string
@@ -26,14 +22,22 @@ function createEmptyExtraRow(): ExtraRow {
 interface NovoPedidoProps {
   readOnly?: boolean
   fixedBranchId?: number
+  fixedBranchName?: string
   hideTitle?: boolean
+  onSuccess?: () => void
 }
 
-export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle = false }: NovoPedidoProps = {}) {
-  const navigate = useNavigate()
+export default function NovoPedido({
+  readOnly = false,
+  fixedBranchId,
+  fixedBranchName,
+  hideTitle = false,
+  onSuccess,
+}: NovoPedidoProps = {}) {
   const { addOrder } = useOrders()
   const { items, loadingItems } = useItems()
   const { user } = useAuth()
+  const toast = useToast()
   const branches = user?.branches ?? []
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([createEmptyExtraRow()])
@@ -42,6 +46,8 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
   )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (fixedBranchId !== undefined) setBranchId(fixedBranchId)
@@ -69,8 +75,9 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
 
   const selectedItems = Object.entries(quantities).filter(([, qty]) => qty > 0)
   const validExtraRows = extraRows.filter((row) => row.name.trim().length > 0 && row.quantity > 0)
+  const selectedBranchName = fixedBranchName ?? branches.find((b) => b.id === branchId)?.name
 
-  async function handleSubmit() {
+  function handleSubmit() {
     setError(null)
     if (!branchId) {
       setError('Selecione a filial')
@@ -80,6 +87,10 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
       setError('Selecione ao menos um item')
       return
     }
+    setConfirmOpen(true)
+  }
+
+  async function handleConfirmSubmit() {
     setSubmitting(true)
     try {
       const created = await api.post<Order>('/orders', {
@@ -88,9 +99,13 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
         extras: validExtraRows.map((row) => ({ name: row.name.trim(), quantity: row.quantity })),
       })
       addOrder(created)
-      navigate('/pedidos')
+      setQuantities({})
+      setExtraRows([createEmptyExtraRow()])
+      setConfirmOpen(false)
+      toast.success('Pedido enviado com sucesso!')
+      onSuccess?.()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível enviar o pedido')
+      toast.error(err instanceof ApiError ? err.message : 'Não foi possível enviar o pedido')
     } finally {
       setSubmitting(false)
     }
@@ -100,10 +115,18 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
     return <p className="text-gray-500">Carregando itens...</p>
   }
 
-  const itemsByCategory = CATEGORY_ORDER.map((category) => ({
-    category,
-    items: items.filter((item) => item.category === category),
-  })).filter((group) => group.items.length > 0)
+  const normalizedSearch = normalizeText(search)
+  const visibleItems = normalizedSearch
+    ? items.filter((item) => normalizeText(item.name).includes(normalizedSearch))
+    : items
+
+  const categoriesById = new Map(visibleItems.map((item) => [item.categoryId, item.category]))
+  const itemsByCategory = [...categoriesById.values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((category) => ({
+      category,
+      items: visibleItems.filter((item) => item.categoryId === category.id),
+    }))
 
   const totalSelected = selectedItems.length + validExtraRows.length
 
@@ -119,7 +142,7 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
   }
 
   return (
-    <div className={readOnly ? '' : 'pb-24'}>
+    <div className={readOnly ? '' : 'pb-[calc(6rem+env(safe-area-inset-bottom))]'}>
       {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
 
       {!readOnly && fixedBranchId === undefined && (
@@ -149,11 +172,30 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
         </div>
       )}
 
+      <div className="relative mb-6">
+        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+          <SearchIcon className="h-4 w-4" />
+        </span>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar produto..."
+          className="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+        />
+      </div>
+
+      {normalizedSearch && itemsByCategory.length === 0 && (
+        <p className="mb-6 text-sm text-gray-500">
+          Nenhum produto encontrado para "{search.trim()}".
+        </p>
+      )}
+
       <div className="space-y-6">
         {itemsByCategory.map((group) => (
-          <div key={group.category}>
+          <div key={group.category.id}>
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
-              {CATEGORY_LABELS[group.category]}
+              {group.category.name}
             </h2>
             <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
               {group.items.map((item) => {
@@ -165,7 +207,7 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
                   >
                     <div className="min-w-0">
                       <p className="font-medium text-gray-900">{item.name}</p>
-                      <p className="text-sm text-gray-500">{item.unit}</p>
+                      <p className="text-sm text-gray-500">{item.packaging.name}</p>
                     </div>
                     <div className="flex items-center justify-end gap-3 sm:justify-start">
                       <button
@@ -249,7 +291,7 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
       {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
       {!readOnly && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white p-4 lg:left-64">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-200 bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] lg:left-64">
           <div className="mx-auto max-w-5xl">
             <button
               type="button"
@@ -266,6 +308,28 @@ export default function NovoPedido({ readOnly = false, fixedBranchId, hideTitle 
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Confirmar envio do pedido"
+        message={
+          <>
+            Você está enviando <strong>{totalSelected}</strong>{' '}
+            {totalSelected === 1 ? 'item' : 'itens'}
+            {selectedBranchName ? (
+              <>
+                {' '}
+                para <strong>{selectedBranchName}</strong>
+              </>
+            ) : null}
+            . Depois de enviado, a central vai conferir o que tem em estoque antes de despachar.
+          </>
+        }
+        confirmLabel="Enviar pedido"
+        loading={submitting}
+        onConfirm={handleConfirmSubmit}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

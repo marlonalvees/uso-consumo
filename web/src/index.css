@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* Fora de qualquer @layer: vence os utilitários do Tailwind (ex: text-sm em
+   inputs) na cascata. iOS Safari dá zoom automático ao focar um campo com
+   font-size < 16px — isso garante 16px em todo campo, em qualquer tela. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Evita flash branco no "elastic bounce" do Safari/iOS ao dar overscroll. */
+html,
+body {
+  background-color: #f5f5f5;
+}
+
 @theme {
   --color-novamix-orange: #f0862f;
   --color-novamix-orange-dark: #d9701d;
