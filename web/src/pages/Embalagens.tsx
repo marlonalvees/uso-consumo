@@ -129,7 +129,7 @@ export default function Embalagens({ hideTitle = false }: EmbalagensProps = {}) 
                       onClick={() => handleSaveEdit(packaging.id)}
                       disabled={savingId === packaging.id}
                       aria-label="Salvar"
-                      className="inline-flex items-center justify-center rounded-lg p-2 text-novamix-teal transition hover:bg-novamix-teal/10 disabled:opacity-60"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-novamix-teal text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
                     >
                       <CheckIcon className="h-4 w-4" />
                     </button>
@@ -137,7 +137,7 @@ export default function Embalagens({ hideTitle = false }: EmbalagensProps = {}) 
                       type="button"
                       onClick={() => setEditingId(null)}
                       aria-label="Cancelar"
-                      className="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 transition hover:bg-gray-100"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 text-white transition hover:bg-gray-500"
                     >
                       <CloseIcon className="h-4 w-4" />
                     </button>
@@ -149,7 +149,7 @@ export default function Embalagens({ hideTitle = false }: EmbalagensProps = {}) 
                       type="button"
                       onClick={() => startEdit(packaging)}
                       aria-label="Editar"
-                      className="inline-flex items-center justify-center rounded-lg p-2 text-novamix-orange transition hover:bg-novamix-orange/10"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-novamix-orange text-white transition hover:bg-novamix-orange-dark"
                     >
                       <EditIcon className="h-4 w-4" />
                     </button>
@@ -158,7 +158,7 @@ export default function Embalagens({ hideTitle = false }: EmbalagensProps = {}) 
                       onClick={() => setDeleteTarget(packaging)}
                       disabled={deletingId === packaging.id}
                       aria-label="Apagar"
-                      className="inline-flex items-center justify-center rounded-lg p-2 text-black transition hover:bg-gray-100 disabled:opacity-60"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90 disabled:opacity-60"
                     >
                       <TrashIcon className="h-4 w-4" />
                     </button>

@@ -138,9 +138,9 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 text-white transition hover:bg-gray-500"
           >
-            <CloseIcon className="h-5 w-5" />
+            <CloseIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -173,7 +173,7 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
                       type="button"
                       onClick={() => removeItemRow(row.itemId)}
                       aria-label="Remover"
-                      className="shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-red-base/10 hover:text-red-base"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90"
                     >
                       <CloseIcon className="h-4 w-4" />
                     </button>
@@ -243,7 +243,7 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
                       type="button"
                       onClick={() => removeExtraRow(index)}
                       aria-label="Remover"
-                      className="shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-red-base/10 hover:text-red-base"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90"
                     >
                       <CloseIcon className="h-4 w-4" />
                     </button>

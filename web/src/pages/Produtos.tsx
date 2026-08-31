@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError, assetUrl } from '../lib/api'
 import type { Item, Supplier } from '../types'
-import { CameraIcon, CheckIcon, CloseIcon, EditIcon, TrashIcon } from '../components/icons'
+import { CameraIcon, CloseIcon, EditIcon, TrashIcon } from '../components/icons'
 import { useToast } from '../context/ToastContext'
 import { useCategories } from '../context/CategoriesContext'
 import { usePackaging } from '../context/PackagingContext'
 import ConfirmDialog from '../components/ConfirmDialog'
+import ProductEditModal from '../components/ProductEditModal'
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -98,8 +99,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
   const [newItem, setNewItem] = useState<ItemFormState>(emptyForm('', ''))
   const [creating, setCreating] = useState(false)
 
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<ItemFormState>(emptyForm('', ''))
+  const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null)
@@ -184,45 +184,9 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
     }
   }
 
-  function startEdit(item: Item) {
-    setEditingId(item.id)
-    setEditForm({
-      name: item.name,
-      packagingId: item.packagingId,
-      price: String(item.price),
-      categoryId: item.categoryId,
-      supplierId: item.supplierId ?? '',
-      minStock: String(item.minStock),
-    })
-  }
-
-  function cancelEdit() {
-    setEditingId(null)
-  }
-
-  async function handleSaveEdit(id: string) {
-    setError(null)
-    const parsed = parseAndValidate(editForm)
-    if (!parsed) return
-
-    setSavingId(id)
-    try {
-      const updated = await api.patch<Item>(`/items/${id}`, {
-        ...parsed,
-        categoryId: editForm.categoryId,
-        packagingId: editForm.packagingId,
-        supplierId: editForm.supplierId || null,
-      })
-      setItems((prev) => prev.map((i) => (i.id === id ? updated : i)))
-      setEditingId(null)
-      toast.success(`Produto "${updated.name}" atualizado`)
-    } catch (err) {
-      const message = err instanceof ApiError ? err.message : 'Não foi possível salvar o produto'
-      setError(message)
-      toast.error(message)
-    } finally {
-      setSavingId(null)
-    }
+  function handleEditSaved(updated: Item) {
+    setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
+    setEditingItem(null)
   }
 
   async function handleToggleActive(item: Item) {
@@ -431,187 +395,61 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {items.map((item) => {
-                const isEditing = editingId === item.id
                 const lowStock = item.stockQuantity <= item.minStock
                 return (
                   <tr key={item.id} className={item.active ? '' : 'opacity-50'}>
-                    {isEditing ? (
-                      <>
-                        <td className="px-4 py-2">
-                          <PhotoCell
-                            item={item}
-                            uploading={uploadingPhotoId === item.id}
-                            onSelect={handlePhotoSelect}
-                            onRemove={handlePhotoRemove}
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={editForm.name}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, name: e.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <select
-                            value={editForm.packagingId}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, packagingId: e.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                          >
-                            {packagingList.map((packaging) => (
-                              <option key={packaging.id} value={packaging.id}>
-                                {packaging.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="relative">
-                            <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-xs text-gray-400">
-                              R$
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={editForm.price}
-                              onChange={(e) =>
-                                setEditForm((prev) => ({ ...prev, price: e.target.value }))
-                              }
-                              className="w-full rounded-lg border border-gray-300 bg-white py-1 pr-2 pl-7 text-sm"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-2">
-                          <select
-                            value={editForm.categoryId}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                          >
-                            {categories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-2">
-                          <select
-                            value={editForm.supplierId}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, supplierId: e.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                          >
-                            <option value="">Sem fornecedor</option>
-                            {suppliers.map((supplier) => (
-                              <option key={supplier.id} value={supplier.id}>
-                                {supplier.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={editForm.minStock}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, minStock: e.target.value }))
-                            }
-                            className="w-20 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                            placeholder="mín."
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-gray-500">
-                          {item.active ? 'Ativo' : 'Inativo'}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleSaveEdit(item.id)}
-                            disabled={savingId === item.id}
-                            aria-label="Salvar"
-                            className="mr-3 inline-flex items-center justify-center rounded-lg p-2 text-novamix-teal transition hover:bg-novamix-teal/10 disabled:opacity-60"
-                          >
-                            <CheckIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEdit}
-                            aria-label="Cancelar"
-                            className="inline-flex items-center justify-center rounded-lg p-2 text-gray-500 transition hover:bg-gray-100"
-                          >
-                            <CloseIcon className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-4 py-3">
-                          <PhotoCell
-                            item={item}
-                            uploading={uploadingPhotoId === item.id}
-                            onSelect={handlePhotoSelect}
-                            onRemove={handlePhotoRemove}
-                          />
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900">{item.name}</td>
-                        <td className="px-4 py-3 text-gray-600">{item.packaging.name}</td>
-                        <td className="px-4 py-3 text-gray-600">{formatCurrency(item.price)}</td>
-                        <td className="px-4 py-3 text-gray-600">{item.category.name}</td>
-                        <td className="px-4 py-3 text-gray-600">{item.supplier?.name ?? '—'}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`font-medium ${lowStock ? 'text-red-base' : 'text-gray-900'}`}
-                          >
-                            {item.stockQuantity}
-                          </span>
-                          <span className="text-gray-400"> / mín. {item.minStock}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleActive(item)}
-                            disabled={savingId === item.id}
-                            className={`inline-block rounded-full px-3 py-1 text-xs font-medium disabled:opacity-60 ${
-                              item.active
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-500'
-                            }`}
-                          >
-                            {item.active ? 'Ativo' : 'Inativo'}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => startEdit(item)}
-                            aria-label="Editar"
-                            className="mr-3 inline-flex items-center justify-center rounded-lg p-2 text-novamix-orange transition hover:bg-novamix-orange/10"
-                          >
-                            <EditIcon className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(item)}
-                            disabled={deletingId === item.id}
-                            aria-label="Apagar"
-                            className="inline-flex items-center justify-center rounded-lg p-2 text-black transition hover:bg-gray-100 disabled:opacity-60"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </>
-                    )}
+                    <td className="px-4 py-3">
+                      <PhotoCell
+                        item={item}
+                        uploading={uploadingPhotoId === item.id}
+                        onSelect={handlePhotoSelect}
+                        onRemove={handlePhotoRemove}
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{item.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{item.packaging.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatCurrency(item.price)}</td>
+                    <td className="px-4 py-3 text-gray-600">{item.category.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{item.supplier?.name ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`font-medium ${lowStock ? 'text-red-base' : 'text-gray-900'}`}
+                      >
+                        {item.stockQuantity}
+                      </span>
+                      <span className="text-gray-400"> / mín. {item.minStock}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleActive(item)}
+                        disabled={savingId === item.id}
+                        className={`inline-block rounded-full px-3 py-1 text-xs font-medium disabled:opacity-60 ${
+                          item.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {item.active ? 'Ativo' : 'Inativo'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setEditingItem(item)}
+                        aria-label="Editar"
+                        className="mr-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-novamix-orange text-white transition hover:bg-novamix-orange-dark"
+                      >
+                        <EditIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item)}
+                        disabled={deletingId === item.id}
+                        aria-label="Apagar"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90 disabled:opacity-60"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -619,6 +457,15 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
           </table>
         </div>
       )}
+
+      <ProductEditModal
+        item={editingItem}
+        categories={categories}
+        packagingList={packagingList}
+        suppliers={suppliers}
+        onClose={() => setEditingItem(null)}
+        onSaved={handleEditSaved}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

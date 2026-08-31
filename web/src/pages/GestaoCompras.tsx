@@ -164,7 +164,7 @@ export default function GestaoCompras() {
                       rel="noopener noreferrer"
                       aria-label="Enviar pedido por WhatsApp"
                       title="Enviar pedido por WhatsApp"
-                      className="inline-flex items-center justify-center rounded-lg border border-green-600 p-2 text-green-600 transition hover:bg-green-50"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-green-600 text-white transition hover:bg-green-700"
                     >
                       <MessageIcon className="h-4 w-4" />
                     </a>
@@ -254,7 +254,7 @@ export default function GestaoCompras() {
                 onClick={() => removeRow(row.id)}
                 disabled={rows.length === 1}
                 aria-label="Remover linha"
-                className="shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-red-base/10 hover:text-red-base disabled:opacity-0"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90 disabled:opacity-0"
               >
                 <CloseIcon className="h-4 w-4" />
               </button>
