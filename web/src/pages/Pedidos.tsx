@@ -109,7 +109,7 @@ export default function Pedidos() {
                 key={t.value}
                 type="button"
                 onClick={() => setTab(t.value)}
-                className={`relative rounded-md px-3 py-2 text-sm font-medium transition sm:px-4 ${
+                className={`relative whitespace-nowrap rounded-md px-1.5 py-2 text-xs font-medium transition sm:px-4 sm:text-sm ${
                   tab === t.value
                     ? 'bg-novamix-teal/10 text-novamix-teal'
                     : 'text-gray-600 hover:text-gray-900'
@@ -117,7 +117,7 @@ export default function Pedidos() {
               >
                 {t.label}
                 {t.value === 'recentes' && awaitingCount > 0 && (
-                  <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-novamix-orange px-1 text-xs font-semibold text-white">
+                  <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-novamix-orange px-1 text-[10px] font-semibold text-white sm:ml-1.5 sm:h-5 sm:min-w-5 sm:text-xs">
                     {awaitingCount}
                   </span>
                 )}

@@ -203,7 +203,7 @@ export default function NovoPedido({
             onClick={() => setCategoryFilter('')}
             className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
               categoryFilter === ''
-                ? 'bg-novamix-teal text-white'
+                ? 'bg-novamix-orange text-white hover:bg-novamix-orange-dark'
                 : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
             }`}
           >
@@ -216,7 +216,7 @@ export default function NovoPedido({
               onClick={() => setCategoryFilter(category.id)}
               className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
                 categoryFilter === category.id
-                  ? 'bg-novamix-teal text-white'
+                  ? 'bg-novamix-orange text-white hover:bg-novamix-orange-dark'
                   : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
               }`}
             >
@@ -282,7 +282,7 @@ export default function NovoPedido({
                         type="button"
                         onClick={() => updateQuantity(item.id, -1)}
                         disabled={quantity === 0}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
                       >
                         −
                       </button>
@@ -290,7 +290,7 @@ export default function NovoPedido({
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.id, 1)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal transition hover:bg-novamix-teal/10"
                       >
                         +
                       </button>
@@ -321,7 +321,7 @@ export default function NovoPedido({
                     type="button"
                     onClick={() => updateExtraRow(row.id, { quantity: Math.max(0, row.quantity - 1) })}
                     disabled={row.quantity === 0}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
                   >
                     −
                   </button>
@@ -329,7 +329,7 @@ export default function NovoPedido({
                   <button
                     type="button"
                     onClick={() => updateExtraRow(row.id, { quantity: row.quantity + 1 })}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal transition hover:bg-novamix-teal/10"
                   >
                     +
                   </button>

@@ -159,6 +159,7 @@ model Purchase {
   supplier       Supplier        @relation(fields: [supplierId], references: [id])
   supplierId     String          @map("supplier_id")
   notes          String?
+  invoicePath    String?         @map("invoice_path")
   createdAt      DateTime        @default(now()) @map("created_at")
   items          PurchaseItem[]
   stockMovements StockMovement[]

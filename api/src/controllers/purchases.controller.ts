@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express'
+import multer from 'multer'
 import { prisma } from '../lib/prisma'
+import { uploadInvoicePhoto, deleteUploadedFile } from '../middlewares/upload'
 
 const PURCHASE_INCLUDE = {
   supplier: true,
@@ -90,6 +92,70 @@ export async function createPurchase(req: Request, res: Response) {
   })
 
   res.status(201).json(purchase)
+}
+
+export function uploadPurchaseInvoice(req: Request, res: Response) {
+  const id = req.params.id
+  if (typeof id !== 'string') {
+    res.status(400).json({ error: 'Id da compra inválido' })
+    return
+  }
+
+  uploadInvoicePhoto(req, res, async (err: unknown) => {
+    if (err) {
+      const message =
+        err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE'
+          ? 'Imagem muito grande — máximo 5MB'
+          : err instanceof Error
+            ? err.message
+            : 'Não foi possível enviar a imagem'
+      res.status(400).json({ error: message })
+      return
+    }
+    if (!req.file) {
+      res.status(400).json({ error: 'Envie uma imagem no campo "invoice"' })
+      return
+    }
+
+    const relativePath = `notas-fiscais/${req.file.filename}`
+    const existing = await prisma.purchase.findUnique({ where: { id } })
+    if (!existing) {
+      deleteUploadedFile(relativePath)
+      res.status(404).json({ error: 'Compra não encontrada' })
+      return
+    }
+
+    if (existing.invoicePath) deleteUploadedFile(existing.invoicePath)
+
+    const purchase = await prisma.purchase.update({
+      where: { id },
+      data: { invoicePath: relativePath },
+      include: PURCHASE_INCLUDE,
+    })
+    res.json(purchase)
+  })
+}
+
+export async function removePurchaseInvoice(req: Request, res: Response) {
+  const id = req.params.id
+  if (typeof id !== 'string') {
+    res.status(400).json({ error: 'Id da compra inválido' })
+    return
+  }
+
+  const existing = await prisma.purchase.findUnique({ where: { id } })
+  if (!existing) {
+    res.status(404).json({ error: 'Compra não encontrada' })
+    return
+  }
+  if (existing.invoicePath) deleteUploadedFile(existing.invoicePath)
+
+  const purchase = await prisma.purchase.update({
+    where: { id },
+    data: { invoicePath: null },
+    include: PURCHASE_INCLUDE,
+  })
+  res.json(purchase)
 }
 
 export async function getPurchaseRecommendations(_req: Request, res: Response) {

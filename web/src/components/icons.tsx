@@ -23,4 +23,5 @@ export {
   ClipboardList as ClipboardIcon,
   PackageSearch as PackageSearchIcon,
   PackageCheck as PackageCheckIcon,
+  Receipt as ReceiptIcon,
 } from 'lucide-react'
