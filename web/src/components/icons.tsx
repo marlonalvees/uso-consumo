@@ -16,4 +16,11 @@ export {
   Image as ImageIcon,
   ZoomIn as ZoomInIcon,
   Plus as PlusIcon,
+  Tag as TagIcon,
+  Archive as ArchiveIcon,
+  Building2 as BuildingIcon,
+  Warehouse as WarehouseIcon,
+  ClipboardList as ClipboardIcon,
+  PackageSearch as PackageSearchIcon,
+  PackageCheck as PackageCheckIcon,
 } from 'lucide-react'

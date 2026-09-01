@@ -1,52 +1,17 @@
-import type { JSX } from 'react'
+import type { ComponentType } from 'react'
 import type { OrderStatus } from '../types'
+import { ClipboardIcon, PackageCheckIcon, PackageSearchIcon, TruckIcon } from './icons'
 
 interface Step {
   label: string
-  icon: JSX.Element
-}
-
-const ICON_PROPS = {
-  className: 'h-5 w-5',
-  fill: 'none',
-  viewBox: '0 0 24 24',
-  strokeWidth: 1.8,
-  stroke: 'currentColor',
+  Icon: ComponentType<{ className?: string }>
 }
 
 const STEPS: Step[] = [
-  {
-    label: 'Pedido Criado',
-    icon: (
-      <svg {...ICON_PROPS}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M9 8h1M5 21h14a1 1 0 0 0 1-1V6.828a1 1 0 0 0-.293-.707l-2.828-2.828A1 1 0 0 0 16.172 3H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1Z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Em Separação',
-    icon: (
-      <svg {...ICON_PROPS}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 8 8.25 4.5L20.25 8M3.75 8v8l8.25 4.5m8.25-12.5v8l-8.25 4.5m0-9V21m8.25-13-8.25-4.5L3.75 8" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Em Transporte',
-    icon: (
-      <svg {...ICON_PROPS}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h11v10H3zm11 3h4l3 3v4h-7zM6.5 20a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm11 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Pedido Entregue',
-    icon: (
-      <svg {...ICON_PROPS}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="m3 11 9-7 9 7M5 10v10h14V10M9.5 20v-6h5v6" />
-      </svg>
-    ),
-  },
+  { label: 'Pedido Criado', Icon: ClipboardIcon },
+  { label: 'Em Separação', Icon: PackageSearchIcon },
+  { label: 'Em Transporte', Icon: TruckIcon },
+  { label: 'Pedido Entregue', Icon: PackageCheckIcon },
 ]
 
 function stepIndexForStatus(status: OrderStatus): number {
@@ -99,7 +64,7 @@ export default function OrderStatusTimeline({ status, createdAt, deliveredAt }: 
                     : 'border-gray-200 bg-white text-gray-300'
                 } ${isCurrent ? 'ring-2 ring-novamix-teal/30' : ''}`}
               >
-                {step.icon}
+                <step.Icon className="h-4 w-4" />
               </div>
               <p className={`mt-2 max-w-[6.5rem] text-center text-xs font-medium ${done ? 'text-gray-900' : 'text-gray-400'}`}>
                 {step.label}

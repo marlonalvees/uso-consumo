@@ -4,6 +4,7 @@ import type { Item, Order } from '../types'
 import { useOrders } from '../context/OrdersContext'
 import { useItems } from '../context/ItemsContext'
 import { useAuth } from '../context/AuthContext'
+import { useCategories } from '../context/CategoriesContext'
 import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PhotoLightbox from '../components/PhotoLightbox'
@@ -38,6 +39,7 @@ export default function NovoPedido({
   const { addOrder } = useOrders()
   const { items, loadingItems } = useItems()
   const { user } = useAuth()
+  const { categories } = useCategories()
   const toast = useToast()
   const branches = user?.branches ?? []
   const [quantities, setQuantities] = useState<Record<string, number>>({})
@@ -49,6 +51,7 @@ export default function NovoPedido({
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [previewItem, setPreviewItem] = useState<Item | null>(null)
 
   useEffect(() => {
@@ -118,9 +121,15 @@ export default function NovoPedido({
   }
 
   const normalizedSearch = normalizeText(search)
-  const visibleItems = normalizedSearch
-    ? items.filter((item) => normalizeText(item.name).includes(normalizedSearch))
-    : items
+  const visibleItems = items.filter((item) => {
+    if (categoryFilter && item.categoryId !== categoryFilter) return false
+    if (normalizedSearch && !normalizeText(item.name).includes(normalizedSearch)) return false
+    return true
+  })
+
+  const categoriesWithItems = categories.filter((category) =>
+    items.some((item) => item.categoryId === category.id),
+  )
 
   const categoriesById = new Map(visibleItems.map((item) => [item.categoryId, item.category]))
   const itemsByCategory = [...categoriesById.values()]
@@ -174,7 +183,7 @@ export default function NovoPedido({
         </div>
       )}
 
-      <div className="relative mb-6">
+      <div className="relative mb-3">
         <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
           <SearchIcon className="h-4 w-4" />
         </span>
@@ -187,32 +196,64 @@ export default function NovoPedido({
         />
       </div>
 
-      {normalizedSearch && itemsByCategory.length === 0 && (
+      {categoriesWithItems.length > 1 && (
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('')}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              categoryFilter === ''
+                ? 'bg-novamix-teal text-white'
+                : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
+            }`}
+          >
+            Todas
+          </button>
+          {categoriesWithItems.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => setCategoryFilter(category.id)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                categoryFilter === category.id
+                  ? 'bg-novamix-teal text-white'
+                  : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
+              }`}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {itemsByCategory.length === 0 && (
         <p className="mb-6 text-sm text-gray-500">
-          Nenhum produto encontrado para "{search.trim()}".
+          {normalizedSearch ? `Nenhum produto encontrado para "${search.trim()}".` : 'Nenhum produto nessa categoria.'}
         </p>
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         {itemsByCategory.map((group) => (
           <div key={group.category.id}>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
-              {group.category.name}
-            </h2>
+            {categoryFilter === '' && (
+              <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
+                {group.category.name}
+              </h2>
+            )}
             <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
               {group.items.map((item) => {
                 const quantity = quantities[item.id] ?? 0
                 return (
                   <li
                     key={item.id}
-                    className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                    className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => item.photoPath && setPreviewItem(item)}
                         aria-label={item.photoPath ? `Ver foto de ${item.name}` : undefined}
-                        className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-300 ${
+                        className={`relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-300 ${
                           item.photoPath ? '' : 'pointer-events-none'
                         }`}
                       >
@@ -228,20 +269,20 @@ export default function NovoPedido({
                             </span>
                           </>
                         ) : (
-                          <ImageIcon className="h-5 w-5" />
+                          <ImageIcon className="h-4 w-4" />
                         )}
                       </button>
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-900">{item.name}</p>
-                        <p className="text-sm text-gray-500">{item.packaging.name}</p>
+                        <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                        <p className="text-xs text-gray-500">{item.packaging.name}</p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-end gap-3 sm:justify-start">
+                    <div className="flex items-center justify-end gap-2.5 sm:justify-start">
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.id, -1)}
                         disabled={quantity === 0}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
                       >
                         −
                       </button>
@@ -249,7 +290,7 @@ export default function NovoPedido({
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.id, 1)}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
                       >
                         +
                       </button>

@@ -40,7 +40,7 @@ export default function Pedidos() {
       .get<Branch[]>('/branches')
       .then((data) => {
         setBranches(data)
-        if (data.length > 0) setBranchId(data[0].id)
+        setBranchId('')
       })
       .catch(() => {
         setError('Não foi possível carregar as filiais')
@@ -81,9 +81,10 @@ export default function Pedidos() {
             <select
               id="pedidos-branch"
               value={branchId}
-              onChange={(e) => setBranchId(Number(e.target.value))}
+              onChange={(e) => setBranchId(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
             >
+              {isAdmin && <option value="">Todas as lojas</option>}
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -124,14 +125,17 @@ export default function Pedidos() {
             ))}
           </div>
 
-          {tab === 'novo' && (
-            <NovoPedido
-              fixedBranchId={branchId === '' ? undefined : branchId}
-              fixedBranchName={selectedBranchName}
-              hideTitle
-              onSuccess={() => setTab('recentes')}
-            />
-          )}
+          {tab === 'novo' &&
+            (branchId === '' ? (
+              <p className="text-gray-500">Selecione uma loja específica para criar um pedido.</p>
+            ) : (
+              <NovoPedido
+                fixedBranchId={branchId}
+                fixedBranchName={selectedBranchName}
+                hideTitle
+                onSuccess={() => setTab('recentes')}
+              />
+            ))}
           {tab === 'recentes' && (
             <MeusPedidos branchId={branchId === '' ? undefined : branchId} hideTitle />
           )}
