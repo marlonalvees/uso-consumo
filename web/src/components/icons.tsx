@@ -13,4 +13,7 @@ export {
   Truck as TruckIcon,
   Coins as CoinIcon,
   LogOut as LogOutIcon,
+  Image as ImageIcon,
+  ZoomIn as ZoomInIcon,
+  Plus as PlusIcon,
 } from 'lucide-react'

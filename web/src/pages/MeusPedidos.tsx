@@ -10,7 +10,8 @@ import { normalizeText } from '../lib/text';
 import OrderStatusTimeline from '../components/OrderStatusTimeline';
 import OrderPrintSheet from '../components/OrderPrintSheet';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { SearchIcon } from '../components/icons';
+import OrderFulfillmentModal from '../components/OrderFulfillmentModal';
+import { EditIcon, SearchIcon } from '../components/icons';
 import { usePrintOrder } from '../hooks/usePrintOrder';
 
 interface OrderCardProps {
@@ -19,10 +20,12 @@ interface OrderCardProps {
   confirmingId: string | null;
   onConfirm: (order: Order) => void;
   onPrint: (order: Order) => void;
+  onEdit: (order: Order) => void;
   readOnly?: boolean;
+  canEdit?: boolean;
 }
 
-function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, readOnly }: OrderCardProps) {
+function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, onEdit, readOnly, canEdit }: OrderCardProps) {
   return (
     <li
       className={`rounded-xl border p-4 ${
@@ -71,6 +74,16 @@ function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, readO
             className="rounded-lg bg-novamix-teal px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
           >
             {confirmingId === order.id ? 'Confirmando...' : 'Confirmar recebimento'}
+          </button>
+        )}
+        {!readOnly && canEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(order)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-novamix-teal px-4 py-2 text-sm font-semibold text-novamix-teal transition hover:bg-novamix-teal/10"
+          >
+            <EditIcon className="h-4 w-4" />
+            Editar pedido
           </button>
         )}
         <button
@@ -130,6 +143,7 @@ export default function MeusPedidos({
   const toast = useToast();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<Order | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const { printingOrder, printOrder } = usePrintOrder();
 
   const [search, setSearch] = useState('');
@@ -162,6 +176,15 @@ export default function MeusPedidos({
     } finally {
       setConfirmingId(null);
     }
+  }
+
+  function canEditOrder(order: Order) {
+    return order.status === 'RECEBIDO' && order.requestedBy.id === user?.id;
+  }
+
+  function handleOrderEdited(updated: Order) {
+    updateOrder(updated);
+    setEditingOrder(null);
   }
 
   if (loading) {
@@ -286,6 +309,8 @@ export default function MeusPedidos({
                   confirmingId={confirmingId}
                   onConfirm={handleRequestConfirm}
                   onPrint={printOrder}
+                  onEdit={setEditingOrder}
+                  canEdit={canEditOrder(order)}
                   readOnly={readOnly}
                 />
               ))}
@@ -313,6 +338,8 @@ export default function MeusPedidos({
                     confirmingId={confirmingId}
                     onConfirm={handleRequestConfirm}
                     onPrint={printOrder}
+                    onEdit={setEditingOrder}
+                    canEdit={canEditOrder(order)}
                     readOnly={readOnly}
                   />
                 ))}
@@ -339,6 +366,14 @@ export default function MeusPedidos({
         loading={confirmingId === confirmTarget?.id}
         onConfirm={handleConfirmDelivery}
         onCancel={() => setConfirmTarget(null)}
+      />
+
+      <OrderFulfillmentModal
+        order={editingOrder}
+        mode="owner"
+        branches={user?.branches ?? []}
+        onClose={() => setEditingOrder(null)}
+        onSaved={handleOrderEdited}
       />
     </div>
   );

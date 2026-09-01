@@ -286,6 +286,108 @@ export async function updateOrderFulfillment(req: Request, res: Response) {
   res.json(updated)
 }
 
+export async function updateOwnOrder(req: Request, res: Response) {
+  const id = req.params.id
+  if (typeof id !== 'string') {
+    res.status(400).json({ error: 'Id do pedido inválido' })
+    return
+  }
+
+  const order = await prisma.order.findUnique({ where: { id } })
+  if (!order) {
+    res.status(404).json({ error: 'Pedido não encontrado' })
+    return
+  }
+  if (order.requestedById !== req.auth!.sub) {
+    res.status(403).json({ error: 'Você só pode editar pedidos feitos por você' })
+    return
+  }
+  if (order.status !== OrderStatus.RECEBIDO) {
+    res.status(400).json({ error: 'Só é possível editar o pedido enquanto ele está em Recebido' })
+    return
+  }
+
+  const { branchId, items, extras } = req.body as {
+    branchId?: number
+    items?: { itemId?: string; quantity?: number }[]
+    extras?: { name?: string; quantity?: number }[]
+  }
+
+  let nextBranchId = order.branchId
+  if (branchId !== undefined) {
+    if (!Number.isInteger(branchId)) {
+      res.status(400).json({ error: 'Informe uma filial válida' })
+      return
+    }
+    const allowedBranchIds = req.auth!.branchs.map((b) => b.id)
+    if (!allowedBranchIds.includes(branchId)) {
+      res.status(403).json({ error: 'Filial informada não está liberada para este usuário' })
+      return
+    }
+    nextBranchId = branchId
+  }
+
+  const hasItems = Array.isArray(items) && items.length > 0
+  const validExtras = (Array.isArray(extras) ? extras : []).filter(
+    (entry) => typeof entry.name === 'string' && entry.name.trim().length > 0,
+  )
+
+  if (!hasItems && validExtras.length === 0) {
+    res.status(400).json({ error: 'Informe ao menos um item no pedido' })
+    return
+  }
+
+  for (const entry of items ?? []) {
+    if (!entry.itemId || !Number.isInteger(entry.quantity) || (entry.quantity ?? 0) <= 0) {
+      res.status(400).json({ error: 'Cada item precisa de itemId e quantity (inteiro > 0)' })
+      return
+    }
+  }
+  for (const entry of validExtras) {
+    if (!Number.isInteger(entry.quantity) || (entry.quantity ?? 0) <= 0) {
+      res.status(400).json({ error: 'Cada item extra precisa de nome e quantity (inteiro > 0)' })
+      return
+    }
+  }
+
+  if (hasItems) {
+    const itemIds = items!.map((entry) => entry.itemId!)
+    const existingItems = await prisma.item.findMany({ where: { id: { in: itemIds } } })
+    if (existingItems.length !== new Set(itemIds).size) {
+      res.status(400).json({ error: 'Um ou mais itens informados não existem' })
+      return
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.orderItem.deleteMany({ where: { orderId: id } })
+    await tx.orderExtraItem.deleteMany({ where: { orderId: id } })
+    await tx.order.update({
+      where: { id },
+      data: {
+        branchId: nextBranchId,
+        items: {
+          create: (items ?? []).map((entry) => ({
+            itemId: entry.itemId!,
+            quantity: entry.quantity!,
+            requestedQuantity: entry.quantity!,
+          })),
+        },
+        extraItems: {
+          create: validExtras.map((entry) => ({
+            name: entry.name!.trim(),
+            quantity: entry.quantity!,
+            requestedQuantity: entry.quantity!,
+          })),
+        },
+      },
+    })
+  })
+
+  const updated = await prisma.order.findUnique({ where: { id }, include: ORDER_INCLUDE })
+  res.json(updated)
+}
+
 export async function confirmDelivery(req: Request, res: Response) {
   const id = req.params.id
   if (typeof id !== 'string') {

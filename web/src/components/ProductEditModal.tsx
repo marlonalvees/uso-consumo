@@ -6,6 +6,7 @@ import { CloseIcon } from './icons'
 
 interface ProductEditModalProps {
   item: Item | null
+  mode?: 'create' | 'edit'
   categories: Category[]
   packagingList: Packaging[]
   suppliers: Supplier[]
@@ -22,8 +23,20 @@ interface FormState {
   minStock: string
 }
 
+function emptyForm(defaultCategoryId: string, defaultPackagingId: string): FormState {
+  return {
+    name: '',
+    packagingId: defaultPackagingId,
+    price: '',
+    categoryId: defaultCategoryId,
+    supplierId: '',
+    minStock: '0',
+  }
+}
+
 export default function ProductEditModal({
   item,
+  mode = 'edit',
   categories,
   packagingList,
   suppliers,
@@ -31,10 +44,15 @@ export default function ProductEditModal({
   onSaved,
 }: ProductEditModalProps) {
   const toast = useToast()
+  const isCreate = mode === 'create'
   const [form, setForm] = useState<FormState | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    if (isCreate) {
+      setForm(emptyForm(categories[0]?.id ?? '', packagingList[0]?.id ?? ''))
+      return
+    }
     if (!item) {
       setForm(null)
       return
@@ -47,9 +65,10 @@ export default function ProductEditModal({
       supplierId: item.supplierId ?? '',
       minStock: String(item.minStock),
     })
-  }, [item])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, isCreate])
 
-  if (!item || !form) return null
+  if ((!isCreate && !item) || !form) return null
 
   async function handleSave() {
     if (!form!.name.trim()) {
@@ -77,16 +96,19 @@ export default function ProductEditModal({
 
     setSaving(true)
     try {
-      const updated = await api.patch<Item>(`/items/${item!.id}`, {
+      const payload = {
         name: form!.name.trim(),
         packagingId: form!.packagingId,
         categoryId: form!.categoryId,
         supplierId: form!.supplierId || null,
         price,
         minStock,
-      })
-      toast.success(`Produto "${updated.name}" atualizado`)
-      onSaved(updated)
+      }
+      const saved = isCreate
+        ? await api.post<Item>('/items', payload)
+        : await api.patch<Item>(`/items/${item!.id}`, payload)
+      toast.success(isCreate ? `Produto "${saved.name}" adicionado` : `Produto "${saved.name}" atualizado`)
+      onSaved(saved)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Não foi possível salvar o produto')
     } finally {
@@ -106,7 +128,9 @@ export default function ProductEditModal({
         className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
-          <h2 className="text-base font-semibold text-gray-900">Editar produto</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            {isCreate ? 'Novo produto' : 'Editar produto'}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -232,7 +256,7 @@ export default function ProductEditModal({
             disabled={saving}
             className="flex h-9 items-center justify-center rounded-lg bg-novamix-teal px-4 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
           >
-            {saving ? 'Salvando...' : 'Salvar'}
+            {saving ? 'Salvando...' : isCreate ? 'Adicionar' : 'Salvar'}
           </button>
         </div>
       </div>

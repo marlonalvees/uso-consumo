@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError } from '../lib/api'
+import { api, ApiError, assetUrl } from '../lib/api'
 import { useItems } from '../context/ItemsContext'
 import { useToast } from '../context/ToastContext'
-import type { Order } from '../types'
-import { CloseIcon } from './icons'
+import type { BranchRef, Order } from '../types'
+import { CloseIcon, ImageIcon, ZoomInIcon } from './icons'
+import PhotoLightbox from './PhotoLightbox'
 
 interface ItemRow {
   itemId: string
   name: string
   packagingName: string
+  photoPath: string | null
   requestedQuantity: number
   quantity: number
 }
@@ -22,18 +24,28 @@ interface ExtraRow {
 
 interface OrderFulfillmentModalProps {
   order: Order | null
+  mode?: 'admin' | 'owner'
+  branches?: BranchRef[]
   onClose: () => void
   onSaved: (order: Order) => void
 }
 
-export default function OrderFulfillmentModal({ order, onClose, onSaved }: OrderFulfillmentModalProps) {
+export default function OrderFulfillmentModal({
+  order,
+  mode = 'admin',
+  branches = [],
+  onClose,
+  onSaved,
+}: OrderFulfillmentModalProps) {
   const { items: catalogItems } = useItems()
   const toast = useToast()
 
   const [itemRows, setItemRows] = useState<ItemRow[]>([])
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([])
   const [addItemId, setAddItemId] = useState('')
+  const [branchId, setBranchId] = useState<number | ''>('')
   const [saving, setSaving] = useState(false)
+  const [previewRow, setPreviewRow] = useState<ItemRow | null>(null)
 
   useEffect(() => {
     if (!order) return
@@ -42,6 +54,7 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
         itemId: oi.itemId,
         name: oi.item.name,
         packagingName: oi.item.packaging.name,
+        photoPath: oi.item.photoPath,
         requestedQuantity: oi.requestedQuantity,
         quantity: oi.quantity,
       })),
@@ -55,17 +68,21 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
       })),
     )
     setAddItemId('')
+    setBranchId(order.branchId)
   }, [order])
 
   if (!order) return null
   const orderId = order.id
+  const isOwnerMode = mode === 'owner'
 
   const availableToAdd = catalogItems.filter(
     (item) => item.active && !itemRows.some((row) => row.itemId === item.id),
   )
 
-  function updateItemQuantity(itemId: string, quantity: number) {
-    setItemRows((prev) => prev.map((row) => (row.itemId === itemId ? { ...row, quantity: Math.max(0, quantity) } : row)))
+  function updateItemQuantity(itemId: string, delta: number) {
+    setItemRows((prev) =>
+      prev.map((row) => (row.itemId === itemId ? { ...row, quantity: Math.max(0, row.quantity + delta) } : row)),
+    )
   }
 
   function removeItemRow(itemId: string) {
@@ -78,13 +95,22 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
     if (!item) return
     setItemRows((prev) => [
       ...prev,
-      { itemId: item.id, name: item.name, packagingName: item.packaging.name, requestedQuantity: 0, quantity: 1 },
+      {
+        itemId: item.id,
+        name: item.name,
+        packagingName: item.packaging.name,
+        photoPath: item.photoPath,
+        requestedQuantity: 0,
+        quantity: 1,
+      },
     ])
     setAddItemId('')
   }
 
-  function updateExtraQuantity(index: number, quantity: number) {
-    setExtraRows((prev) => prev.map((row, i) => (i === index ? { ...row, quantity: Math.max(0, quantity) } : row)))
+  function updateExtraQuantity(index: number, delta: number) {
+    setExtraRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, quantity: Math.max(0, row.quantity + delta) } : row)),
+    )
   }
 
   function updateNewExtraName(index: number, name: string) {
@@ -105,14 +131,20 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
       toast.error('Todo item extra precisa de um nome')
       return
     }
+    if (isOwnerMode && !branchId) {
+      toast.error('Selecione a filial')
+      return
+    }
 
     setSaving(true)
     try {
-      const updated = await api.patch<Order>(`/orders/${orderId}/fulfillment`, {
+      const endpoint = isOwnerMode ? `/orders/${orderId}/edit` : `/orders/${orderId}/fulfillment`
+      const updated = await api.patch<Order>(endpoint, {
+        ...(isOwnerMode ? { branchId } : {}),
         items: itemRows.map((row) => ({ itemId: row.itemId, quantity: row.quantity })),
         extras: extraRows.map((row) => ({ id: row.id, name: row.name.trim(), quantity: row.quantity })),
       })
-      toast.success('Itens do pedido atualizados')
+      toast.success(isOwnerMode ? 'Pedido atualizado' : 'Itens do pedido atualizados')
       onSaved(updated)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Não foi possível salvar as alterações')
@@ -131,8 +163,10 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
       >
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">Editar itens do pedido</h2>
-            <p className="text-sm text-gray-500">{order.branch.name}</p>
+            <h2 className="text-base font-semibold text-gray-900">
+              {isOwnerMode ? 'Editar meu pedido' : 'Editar itens do pedido'}
+            </h2>
+            {!isOwnerMode && <p className="text-sm text-gray-500">{order.branch.name}</p>}
           </div>
           <button
             type="button"
@@ -145,6 +179,23 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          {isOwnerMode && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Filial</label>
+              <select
+                value={branchId}
+                onChange={(e) => setBranchId(Number(e.target.value))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+              >
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-novamix-teal-dark">
               Produtos
@@ -154,29 +205,67 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
             ) : (
               <ul className="space-y-2">
                 {itemRows.map((row) => (
-                  <li key={row.itemId} className="flex items-center gap-2 rounded-lg border border-gray-200 p-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">{row.name}</p>
-                      <p className="text-xs text-gray-400">
-                        {row.packagingName}
-                        {row.requestedQuantity > 0 ? ` · pedido: ${row.requestedQuantity}` : ' · adicionado agora'}
-                      </p>
+                  <li key={row.itemId} className="rounded-lg border border-gray-200 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => row.photoPath && setPreviewRow(row)}
+                          aria-label={row.photoPath ? `Ver foto de ${row.name}` : undefined}
+                          className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-300 ${
+                            row.photoPath ? '' : 'pointer-events-none'
+                          }`}
+                        >
+                          {row.photoPath ? (
+                            <>
+                              <img
+                                src={assetUrl(row.photoPath)}
+                                alt={row.name}
+                                className="h-full w-full object-cover"
+                              />
+                              <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition hover:bg-black/30 hover:opacity-100">
+                                <ZoomInIcon className="h-4 w-4" />
+                              </span>
+                            </>
+                          ) : (
+                            <ImageIcon className="h-5 w-5" />
+                          )}
+                        </button>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium wrap-break-word text-gray-900">{row.name}</p>
+                          <p className="text-xs text-gray-400">
+                            {row.packagingName}
+                            {row.requestedQuantity > 0 ? ` · pedido: ${row.requestedQuantity}` : ' · adicionado agora'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeItemRow(row.itemId)}
+                        aria-label="Remover"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90"
+                      >
+                        <CloseIcon className="h-4 w-4" />
+                      </button>
                     </div>
-                    <input
-                      type="number"
-                      min="0"
-                      value={row.quantity}
-                      onChange={(e) => updateItemQuantity(row.itemId, Number(e.target.value))}
-                      className="w-16 rounded-lg border border-gray-300 bg-white px-2 py-1 text-center text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeItemRow(row.itemId)}
-                      aria-label="Remover"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90"
-                    >
-                      <CloseIcon className="h-4 w-4" />
-                    </button>
+                    <div className="mt-3 flex items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => updateItemQuantity(row.itemId, -1)}
+                        disabled={row.quantity === 0}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 shrink-0 text-center font-medium text-gray-900">{row.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateItemQuantity(row.itemId, 1)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                      >
+                        +
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -187,7 +276,7 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
                 <select
                   value={addItemId}
                   onChange={(e) => setAddItemId(e.target.value)}
-                  className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+                  className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm text-gray-900"
                 >
                   <option value="">Adicionar produto...</option>
                   {availableToAdd.map((item) => (
@@ -200,7 +289,7 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
                   type="button"
                   onClick={addItemRow}
                   disabled={!addItemId}
-                  className="rounded-lg border border-novamix-teal px-3 py-1.5 text-sm font-medium text-novamix-teal transition hover:bg-novamix-teal/10 disabled:opacity-40"
+                  className="shrink-0 rounded-lg border border-novamix-teal px-3 py-2 text-sm font-medium text-novamix-teal transition hover:bg-novamix-teal/10 disabled:opacity-40"
                 >
                   Adicionar
                 </button>
@@ -217,36 +306,49 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
             ) : (
               <ul className="space-y-2">
                 {extraRows.map((row, index) => (
-                  <li key={row.id ?? `new-${index}`} className="flex items-center gap-2 rounded-lg border border-gray-200 p-2">
-                    {row.id ? (
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">{row.name}</p>
-                        <p className="text-xs text-gray-400">extra · pedido: {row.requestedQuantity}</p>
-                      </div>
-                    ) : (
-                      <input
-                        type="text"
-                        value={row.name}
-                        onChange={(e) => updateNewExtraName(index, e.target.value)}
-                        placeholder="Nome do item"
-                        className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm"
-                      />
-                    )}
-                    <input
-                      type="number"
-                      min="0"
-                      value={row.quantity}
-                      onChange={(e) => updateExtraQuantity(index, Number(e.target.value))}
-                      className="w-16 rounded-lg border border-gray-300 bg-white px-2 py-1 text-center text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeExtraRow(index)}
-                      aria-label="Remover"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90"
-                    >
-                      <CloseIcon className="h-4 w-4" />
-                    </button>
+                  <li key={row.id ?? `new-${index}`} className="rounded-lg border border-gray-200 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      {row.id ? (
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium wrap-break-word text-gray-900">{row.name}</p>
+                          <p className="text-xs text-gray-400">extra · pedido: {row.requestedQuantity}</p>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={row.name}
+                          onChange={(e) => updateNewExtraName(index, e.target.value)}
+                          placeholder="Nome do item"
+                          className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeExtraRow(index)}
+                        aria-label="Remover"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-base text-white transition hover:bg-red-base/90"
+                      >
+                        <CloseIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => updateExtraQuantity(index, -1)}
+                        disabled={row.quantity === 0}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 shrink-0 text-center font-medium text-gray-900">{row.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => updateExtraQuantity(index, 1)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                      >
+                        +
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -280,6 +382,12 @@ export default function OrderFulfillmentModal({ order, onClose, onSaved }: Order
           </button>
         </div>
       </div>
+
+      <PhotoLightbox
+        src={previewRow?.photoPath ? assetUrl(previewRow.photoPath) : null}
+        alt={previewRow?.name ?? ''}
+        onClose={() => setPreviewRow(null)}
+      />
     </div>
   )
 }

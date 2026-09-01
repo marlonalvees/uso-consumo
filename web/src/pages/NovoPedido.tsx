@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError } from '../lib/api'
-import type { Order } from '../types'
+import { api, ApiError, assetUrl } from '../lib/api'
+import type { Item, Order } from '../types'
 import { useOrders } from '../context/OrdersContext'
 import { useItems } from '../context/ItemsContext'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { SearchIcon } from '../components/icons'
+import PhotoLightbox from '../components/PhotoLightbox'
+import { ImageIcon, SearchIcon, ZoomInIcon } from '../components/icons'
 import { normalizeText } from '../lib/text'
 
 interface ExtraRow {
@@ -48,6 +49,7 @@ export default function NovoPedido({
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [previewItem, setPreviewItem] = useState<Item | null>(null)
 
   useEffect(() => {
     if (fixedBranchId !== undefined) setBranchId(fixedBranchId)
@@ -205,9 +207,34 @@ export default function NovoPedido({
                     key={item.id}
                     className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                   >
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-900">{item.name}</p>
-                      <p className="text-sm text-gray-500">{item.packaging.name}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => item.photoPath && setPreviewItem(item)}
+                        aria-label={item.photoPath ? `Ver foto de ${item.name}` : undefined}
+                        className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-300 ${
+                          item.photoPath ? '' : 'pointer-events-none'
+                        }`}
+                      >
+                        {item.photoPath ? (
+                          <>
+                            <img
+                              src={assetUrl(item.photoPath)}
+                              alt={item.name}
+                              className="h-full w-full object-cover"
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition hover:bg-black/30 hover:opacity-100">
+                              <ZoomInIcon className="h-4 w-4" />
+                            </span>
+                          </>
+                        ) : (
+                          <ImageIcon className="h-5 w-5" />
+                        )}
+                      </button>
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900">{item.name}</p>
+                        <p className="text-sm text-gray-500">{item.packaging.name}</p>
+                      </div>
                     </div>
                     <div className="flex items-center justify-end gap-3 sm:justify-start">
                       <button
@@ -329,6 +356,12 @@ export default function NovoPedido({
         loading={submitting}
         onConfirm={handleConfirmSubmit}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <PhotoLightbox
+        src={previewItem?.photoPath ? assetUrl(previewItem.photoPath) : null}
+        alt={previewItem?.name ?? ''}
+        onClose={() => setPreviewItem(null)}
       />
     </div>
   )
