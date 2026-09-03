@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../lib/api'
 import type { Branch } from '../types'
 import { useAuth } from '../context/AuthContext'
@@ -19,13 +20,21 @@ export default function Pedidos() {
   const { user } = useAuth()
   const { orders } = useOrders()
   const toast = useToast()
+  const location = useLocation()
   const isAdmin = user?.isAdmin ?? false
 
   const [branches, setBranches] = useState<Branch[]>([])
   const [branchId, setBranchId] = useState<number | ''>('')
-  const [tab, setTab] = useState<Tab>('novo')
+  const [tab, setTab] = useState<Tab>(
+    (location.state as { tab?: Tab } | null)?.tab ?? 'novo',
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const stateTab = (location.state as { tab?: Tab } | null)?.tab
+    if (stateTab) setTab(stateTab)
+  }, [location.state])
 
   useEffect(() => {
     if (!isAdmin) {
@@ -48,8 +57,6 @@ export default function Pedidos() {
       })
       .finally(() => setLoading(false))
   }, [isAdmin, user, toast])
-
-  const selectedBranchName = branches.find((b) => b.id === branchId)?.name
 
   const awaitingCount = useMemo(
     () =>
@@ -76,7 +83,7 @@ export default function Pedidos() {
         {branches.length > 0 && (isAdmin || branches.length > 1) && (
           <div className="sm:w-64">
             <label htmlFor="pedidos-branch" className="mb-1 block text-xs font-medium text-gray-500">
-              Filial
+              Filtrar por filial
             </label>
             <select
               id="pedidos-branch"
@@ -125,17 +132,14 @@ export default function Pedidos() {
             ))}
           </div>
 
-          {tab === 'novo' &&
-            (branchId === '' ? (
-              <p className="text-gray-500">Selecione uma loja específica para criar um pedido.</p>
-            ) : (
-              <NovoPedido
-                fixedBranchId={branchId}
-                fixedBranchName={selectedBranchName}
-                hideTitle
-                onSuccess={() => setTab('recentes')}
-              />
-            ))}
+          {tab === 'novo' && (
+            <NovoPedido
+              branches={branches}
+              hideTitle
+              onSuccess={() => setTab('recentes')}
+              onViewMyOrders={() => setTab('meus')}
+            />
+          )}
           {tab === 'recentes' && (
             <MeusPedidos branchId={branchId === '' ? undefined : branchId} hideTitle />
           )}

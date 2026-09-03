@@ -44,6 +44,16 @@ export async function createOrder(req: Request, res: Response) {
     }
   }
 
+  const existingActiveOrder = await prisma.order.findFirst({
+    where: { requestedById: req.auth!.sub, status: { not: OrderStatus.ENTREGUE } },
+  })
+  if (existingActiveOrder) {
+    res.status(409).json({
+      error: 'Você já tem um pedido em andamento. Aguarde a finalização dele antes de criar um novo.',
+    })
+    return
+  }
+
   const hasItems = Array.isArray(items) && items.length > 0
   const validExtras = (Array.isArray(extras) ? extras : []).filter(
     (entry) => typeof entry.name === 'string' && entry.name.trim().length > 0,

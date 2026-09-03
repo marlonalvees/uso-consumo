@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { api, ApiError, assetUrl } from '../lib/api'
-import type { Item, Order } from '../types'
+import type { Branch, Item, Order } from '../types'
 import { useOrders } from '../context/OrdersContext'
 import { useItems } from '../context/ItemsContext'
 import { useAuth } from '../context/AuthContext'
@@ -10,6 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import PhotoLightbox from '../components/PhotoLightbox'
 import { ImageIcon, SearchIcon, ZoomInIcon } from '../components/icons'
 import { normalizeText } from '../lib/text'
+import { STATUS_LABELS } from '../lib/orderStatus'
 
 interface ExtraRow {
   id: string
@@ -23,40 +24,35 @@ function createEmptyExtraRow(): ExtraRow {
 
 interface NovoPedidoProps {
   readOnly?: boolean
-  fixedBranchId?: number
-  fixedBranchName?: string
+  branches?: Branch[]
   hideTitle?: boolean
   onSuccess?: () => void
+  onViewMyOrders?: () => void
 }
 
 export default function NovoPedido({
   readOnly = false,
-  fixedBranchId,
-  fixedBranchName,
+  branches: branchesProp,
   hideTitle = false,
   onSuccess,
+  onViewMyOrders,
 }: NovoPedidoProps = {}) {
-  const { addOrder } = useOrders()
+  const { addOrder, myActiveOrder } = useOrders()
   const { items, loadingItems } = useItems()
   const { user } = useAuth()
   const { categories } = useCategories()
   const toast = useToast()
-  const branches = user?.branches ?? []
+  const branches = branchesProp ?? user?.branches ?? []
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([createEmptyExtraRow()])
-  const [branchId, setBranchId] = useState<number | ''>(
-    fixedBranchId ?? (branches.length === 1 ? branches[0].id : ''),
-  )
+  const [branchId, setBranchId] = useState<number | ''>(branches.length === 1 ? branches[0].id : '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [previewItem, setPreviewItem] = useState<Item | null>(null)
-
-  useEffect(() => {
-    if (fixedBranchId !== undefined) setBranchId(fixedBranchId)
-  }, [fixedBranchId])
 
   function updateQuantity(itemId: string, delta: number) {
     setQuantities((prev) => {
@@ -80,22 +76,23 @@ export default function NovoPedido({
 
   const selectedItems = Object.entries(quantities).filter(([, qty]) => qty > 0)
   const validExtraRows = extraRows.filter((row) => row.name.trim().length > 0 && row.quantity > 0)
-  const selectedBranchName = fixedBranchName ?? branches.find((b) => b.id === branchId)?.name
 
   function handleSubmit() {
     setError(null)
-    if (!branchId) {
-      setError('Selecione a filial')
-      return
-    }
     if (selectedItems.length === 0 && validExtraRows.length === 0) {
       setError('Selecione ao menos um item')
       return
     }
+    setConfirmError(null)
     setConfirmOpen(true)
   }
 
   async function handleConfirmSubmit() {
+    if (!branchId) {
+      setConfirmError('Selecione a filial')
+      return
+    }
+    setConfirmError(null)
     setSubmitting(true)
     try {
       const created = await api.post<Order>('/orders', {
@@ -141,7 +138,7 @@ export default function NovoPedido({
 
   const totalSelected = selectedItems.length + validExtraRows.length
 
-  if (!readOnly && fixedBranchId === undefined && branches.length === 0) {
+  if (!readOnly && branches.length === 0) {
     return (
       <div>
         {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
@@ -152,36 +149,33 @@ export default function NovoPedido({
     )
   }
 
+  if (!readOnly && myActiveOrder) {
+    return (
+      <div>
+        {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
+        <div className="rounded-xl border border-novamix-orange/30 bg-novamix-orange/5 p-4">
+          <p className="text-sm text-gray-700">
+            Você já tem um pedido <strong>{STATUS_LABELS[myActiveOrder.status].toLowerCase()}</strong>{' '}
+            para a filial <strong>{myActiveOrder.branch.name}</strong>. Aguarde a finalização desse
+            pedido antes de criar um novo.
+          </p>
+          {onViewMyOrders && (
+            <button
+              type="button"
+              onClick={onViewMyOrders}
+              className="mt-3 rounded-lg bg-novamix-teal px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark"
+            >
+              Ver meus pedidos
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={readOnly ? '' : 'pb-[calc(6rem+env(safe-area-inset-bottom))]'}>
       {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
-
-      {!readOnly && fixedBranchId === undefined && (
-        <div className="mb-6">
-          <label htmlFor="branch" className="mb-1 block text-sm font-medium text-gray-700">
-            Filial
-          </label>
-          {branches.length === 1 ? (
-            <p className="text-sm text-gray-900">{branches[0].name}</p>
-          ) : (
-            <select
-              id="branch"
-              value={branchId}
-              onChange={(e) => setBranchId(Number(e.target.value))}
-              className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-            >
-              <option value="" disabled>
-                Selecione a filial
-              </option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
 
       <div className="relative mb-3">
         <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
@@ -382,21 +376,45 @@ export default function NovoPedido({
         title="Confirmar envio do pedido"
         message={
           <>
-            Você está enviando <strong>{totalSelected}</strong>{' '}
-            {totalSelected === 1 ? 'item' : 'itens'}
-            {selectedBranchName ? (
-              <>
-                {' '}
-                para <strong>{selectedBranchName}</strong>
-              </>
-            ) : null}
-            . Depois de enviado, a central vai conferir o que tem em estoque antes de despachar.
+            <p>
+              Você está enviando <strong>{totalSelected}</strong>{' '}
+              {totalSelected === 1 ? 'item' : 'itens'}. Depois de enviado, a central vai conferir o
+              que tem em estoque antes de despachar.
+            </p>
+            <div className="mt-3">
+              <label htmlFor="confirm-branch" className="mb-1 block text-xs font-medium text-gray-500">
+                Para qual filial é esse pedido?
+              </label>
+              {branches.length === 1 ? (
+                <p className="text-sm font-medium text-gray-900">{branches[0].name}</p>
+              ) : (
+                <select
+                  id="confirm-branch"
+                  value={branchId}
+                  onChange={(e) => setBranchId(Number(e.target.value))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+                >
+                  <option value="" disabled>
+                    Selecione a filial
+                  </option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {confirmError && <p className="mt-2 text-sm text-red-600">{confirmError}</p>}
+            </div>
           </>
         }
         confirmLabel="Enviar pedido"
         loading={submitting}
         onConfirm={handleConfirmSubmit}
-        onCancel={() => setConfirmOpen(false)}
+        onCancel={() => {
+          setConfirmOpen(false)
+          setConfirmError(null)
+        }}
       />
 
       <PhotoLightbox

@@ -1,7 +1,24 @@
-import { Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import ConfirmDialog from './ConfirmDialog'
+import { useOrders } from '../context/OrdersContext'
 
 export default function Layout() {
+  const navigate = useNavigate()
+  const { myActiveOrder, loadingOrders } = useOrders()
+  const [alertOpen, setAlertOpen] = useState(false)
+  const [alertShown, setAlertShown] = useState(false)
+
+  const awaitingConfirmation = myActiveOrder?.status === 'ENVIADO'
+
+  useEffect(() => {
+    if (!loadingOrders && awaitingConfirmation && !alertShown) {
+      setAlertOpen(true)
+      setAlertShown(true)
+    }
+  }, [loadingOrders, awaitingConfirmation, alertShown])
+
   return (
     <div className="flex w-full min-h-screen bg-gray">
       <Sidebar />
@@ -30,6 +47,25 @@ export default function Layout() {
           </a>
         </footer>
       </main>
+
+      <ConfirmDialog
+        open={alertOpen}
+        title="Pedido aguardando confirmação"
+        message={
+          <>
+            O pedido da filial <strong>{myActiveOrder?.branch.name}</strong> já foi enviado e está
+            aguardando a confirmação de recebimento. Confirme o recebimento antes de fazer um novo
+            pedido.
+          </>
+        }
+        confirmLabel="Ver meus pedidos"
+        cancelLabel="Fechar"
+        onConfirm={() => {
+          setAlertOpen(false)
+          navigate('/pedidos', { state: { tab: 'meus' } })
+        }}
+        onCancel={() => setAlertOpen(false)}
+      />
     </div>
   )
 }
