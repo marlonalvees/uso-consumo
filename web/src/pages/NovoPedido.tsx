@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api, ApiError, assetUrl } from '../lib/api'
 import type { Item, Order } from '../types'
 import { useOrders } from '../context/OrdersContext'
@@ -7,8 +7,9 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PhotoLightbox from '../components/PhotoLightbox'
-import { ImageIcon, SearchIcon, ZoomInIcon } from '../components/icons'
+import { AlertIcon, ImageIcon, SearchIcon, ZoomInIcon } from '../components/icons'
 import { normalizeText } from '../lib/text'
+import { STATUS_LABELS } from '../lib/orderStatus'
 
 interface ExtraRow {
   id: string
@@ -35,7 +36,7 @@ export default function NovoPedido({
   hideTitle = false,
   onSuccess,
 }: NovoPedidoProps = {}) {
-  const { addOrder } = useOrders()
+  const { orders, addOrder } = useOrders()
   const { items, loadingItems } = useItems()
   const { user } = useAuth()
   const toast = useToast()
@@ -78,6 +79,16 @@ export default function NovoPedido({
   const selectedItems = Object.entries(quantities).filter(([, qty]) => qty > 0)
   const validExtraRows = extraRows.filter((row) => row.name.trim().length > 0 && row.quantity > 0)
   const selectedBranchName = fixedBranchName ?? branches.find((b) => b.id === branchId)?.name
+
+  const openOrdersForBranch = useMemo(
+    () =>
+      branchId
+        ? orders
+            .filter((order) => order.branchId === branchId && order.status !== 'ENTREGUE')
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        : [],
+    [orders, branchId],
+  )
 
   function handleSubmit() {
     setError(null)
@@ -171,6 +182,56 @@ export default function NovoPedido({
               ))}
             </select>
           )}
+        </div>
+      )}
+
+      {!readOnly && openOrdersForBranch.length > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+              <AlertIcon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900">
+                {selectedBranchName ?? 'Esta filial'} já tem {openOrdersForBranch.length === 1 ? 'um pedido em aberto' : 'pedidos em aberto'}
+              </p>
+              <p className="mt-0.5 text-sm text-amber-800">
+                Confira antes de enviar um novo pedido, para evitar duplicidade.
+              </p>
+              <div className="mt-3 space-y-3">
+                {openOrdersForBranch.map((order) => {
+                  const orderEntries = [
+                    ...order.items
+                      .filter((oi) => oi.quantity > 0)
+                      .map((oi) => ({ id: oi.id, name: oi.item.name, quantity: oi.quantity })),
+                    ...order.extraItems
+                      .filter((ei) => ei.quantity > 0)
+                      .map((ei) => ({ id: ei.id, name: ei.name, quantity: ei.quantity })),
+                  ]
+                  return (
+                    <div key={order.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-700">
+                        <span className="font-medium">
+                          Pedido de {new Date(order.createdAt).toLocaleDateString('pt-BR')} — {order.requestedBy.name}
+                        </span>
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold uppercase tracking-wide">
+                          {STATUS_LABELS[order.status]}
+                        </span>
+                      </div>
+                      <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                        {orderEntries.map((entry) => (
+                          <li key={entry.id} className="flex items-center justify-between gap-2">
+                            <span className="truncate">{entry.name}</span>
+                            <span className="shrink-0 font-medium text-gray-900">{entry.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
