@@ -85,6 +85,11 @@ export default function OrderFulfillmentModal({
     )
   }
 
+  function setItemQuantity(itemId: string, value: number) {
+    const next = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+    setItemRows((prev) => prev.map((row) => (row.itemId === itemId ? { ...row, quantity: next } : row)))
+  }
+
   function removeItemRow(itemId: string) {
     setItemRows((prev) => prev.filter((row) => row.itemId !== itemId))
   }
@@ -111,6 +116,11 @@ export default function OrderFulfillmentModal({
     setExtraRows((prev) =>
       prev.map((row, i) => (i === index ? { ...row, quantity: Math.max(0, row.quantity + delta) } : row)),
     )
+  }
+
+  function setExtraQuantity(index: number, value: number) {
+    const next = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+    setExtraRows((prev) => prev.map((row, i) => (i === index ? { ...row, quantity: next } : row)))
   }
 
   function updateNewExtraName(index: number, name: string) {
@@ -257,7 +267,16 @@ export default function OrderFulfillmentModal({
                       >
                         −
                       </button>
-                      <span className="w-8 shrink-0 text-center font-medium text-gray-900">{row.quantity}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={row.quantity}
+                        onChange={(e) => setItemQuantity(row.itemId, Number(e.target.value))}
+                        onFocus={(e) => e.target.select()}
+                        aria-label={`Quantidade de ${row.name}`}
+                        className="w-16 shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-sm font-medium text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+                      />
                       <button
                         type="button"
                         onClick={() => updateItemQuantity(row.itemId, 1)}
@@ -340,7 +359,16 @@ export default function OrderFulfillmentModal({
                       >
                         −
                       </button>
-                      <span className="w-8 shrink-0 text-center font-medium text-gray-900">{row.quantity}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={row.quantity}
+                        onChange={(e) => setExtraQuantity(index, Number(e.target.value))}
+                        onFocus={(e) => e.target.select()}
+                        aria-label={`Quantidade de ${row.name || 'item extra'}`}
+                        className="w-16 shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-sm font-medium text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+                      />
                       <button
                         type="button"
                         onClick={() => updateExtraQuantity(index, 1)}
