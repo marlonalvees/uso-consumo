@@ -164,11 +164,10 @@ export default function OrderFulfillmentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden">
       <div
         role="dialog"
         aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
         className="flex max-h-[85dvh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
