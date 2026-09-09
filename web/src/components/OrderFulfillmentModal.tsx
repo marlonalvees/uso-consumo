@@ -188,6 +188,12 @@ export default function OrderFulfillmentModal({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          {!isOwnerMode && (order.status === 'ENVIADO' || order.status === 'ENTREGUE') && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Esse pedido já foi {order.status === 'ENVIADO' ? 'enviado' : 'entregue'}. Alterar as
+              quantidades vai ajustar o estoque automaticamente (devolver ou baixar a diferença).
+            </p>
+          )}
           {isOwnerMode && (
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">Filial</label>

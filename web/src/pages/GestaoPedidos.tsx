@@ -276,11 +276,7 @@ export default function GestaoPedidos() {
                         order={order}
                         updating={updatingId === order.id}
                         onPrint={() => printOrder(order)}
-                        onEditItems={
-                          col.status === 'RECEBIDO' || col.status === 'EM_ANDAMENTO'
-                            ? () => setEditingOrder(order)
-                            : undefined
-                        }
+                        onEditItems={() => setEditingOrder(order)}
                         onAdvance={
                           col.status === 'RECEBIDO'
                             ? {

@@ -15,8 +15,6 @@ const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
   OrderStatus.ENVIADO,
 ]
 
-const EDITABLE_STATUSES: OrderStatus[] = [OrderStatus.RECEBIDO, OrderStatus.EM_ANDAMENTO]
-
 export async function createOrder(req: Request, res: Response) {
   const { branchId, items, extras } = req.body as {
     branchId?: number
@@ -193,10 +191,6 @@ export async function updateOrderFulfillment(req: Request, res: Response) {
     res.status(404).json({ error: 'Pedido não encontrado' })
     return
   }
-  if (!EDITABLE_STATUSES.includes(order.status)) {
-    res.status(400).json({ error: 'Só é possível editar os itens enquanto o pedido está em Recebido ou Em andamento' })
-    return
-  }
 
   const itemEntries = Array.isArray(items) ? items : []
   const extraEntries = Array.isArray(extras) ? extras : []
@@ -218,13 +212,15 @@ export async function updateOrderFulfillment(req: Request, res: Response) {
     }
   }
 
-  const newItemIds = itemEntries.map((e) => e.itemId!)
-  if (newItemIds.length) {
-    const existingCatalogItems = await prisma.item.findMany({ where: { id: { in: newItemIds } } })
-    if (existingCatalogItems.length !== new Set(newItemIds).size) {
+  const requestedItemIds = itemEntries.map((e) => e.itemId!)
+  const catalogItemById = new Map<string, { id: string; name: string; stockQuantity: number }>()
+  if (requestedItemIds.length) {
+    const existingCatalogItems = await prisma.item.findMany({ where: { id: { in: requestedItemIds } } })
+    if (existingCatalogItems.length !== new Set(requestedItemIds).size) {
       res.status(400).json({ error: 'Um ou mais itens informados não existem no catálogo' })
       return
     }
+    for (const catalogItem of existingCatalogItems) catalogItemById.set(catalogItem.id, catalogItem)
   }
 
   const existingExtraIds = new Set(order.extraItems.map((e) => e.id))
@@ -235,12 +231,52 @@ export async function updateOrderFulfillment(req: Request, res: Response) {
     }
   }
 
+  // pedidos Enviado/Entregue já tiveram o estoque baixado — mudanças de quantidade
+  // agora precisam devolver ou baixar a diferença do estoque
+  const stockAlreadyDeducted = order.status === OrderStatus.ENVIADO || order.status === OrderStatus.ENTREGUE
+  if (stockAlreadyDeducted) {
+    const existingByItemId = new Map(order.items.map((oi) => [oi.itemId, oi]))
+    for (const entry of itemEntries) {
+      const oldQty = existingByItemId.get(entry.itemId!)?.quantity ?? 0
+      const delta = entry.quantity! - oldQty
+      if (delta > 0) {
+        const catalogItem = catalogItemById.get(entry.itemId!)!
+        if (delta > catalogItem.stockQuantity) {
+          res.status(400).json({
+            error: `Estoque insuficiente para aumentar "${catalogItem.name}" — disponível: ${catalogItem.stockQuantity}`,
+          })
+          return
+        }
+      }
+    }
+  }
+
+  const orderId: string = id
+
   await prisma.$transaction(async (tx) => {
     const existingByItemId = new Map(order.items.map((oi) => [oi.itemId, oi]))
     const incomingItemIds = new Set(itemEntries.map((e) => e.itemId!))
 
+    async function adjustStock(itemId: string, oldQty: number, newQty: number) {
+      const delta = newQty - oldQty
+      if (!stockAlreadyDeducted || delta === 0) return
+      if (delta > 0) {
+        await tx.stockMovement.create({
+          data: { itemId, type: 'SAIDA', quantity: delta, reason: 'Ajuste de pedido', orderId },
+        })
+        await tx.item.update({ where: { id: itemId }, data: { stockQuantity: { decrement: delta } } })
+      } else {
+        const qty = -delta
+        await tx.stockMovement.create({
+          data: { itemId, type: 'ENTRADA', quantity: qty, reason: 'Ajuste de pedido (redução de quantidade)', orderId },
+        })
+        await tx.item.update({ where: { id: itemId }, data: { stockQuantity: { increment: qty } } })
+      }
+    }
+
     for (const entry of itemEntries) {
       const existing = existingByItemId.get(entry.itemId!)
+      await adjustStock(entry.itemId!, existing?.quantity ?? 0, entry.quantity!)
       if (existing) {
         await tx.orderItem.update({ where: { id: existing.id }, data: { quantity: entry.quantity! } })
       } else {
@@ -251,6 +287,7 @@ export async function updateOrderFulfillment(req: Request, res: Response) {
     }
     for (const existing of order.items) {
       if (incomingItemIds.has(existing.itemId)) continue
+      await adjustStock(existing.itemId, existing.quantity, 0)
       if (existing.requestedQuantity > 0) {
         await tx.orderItem.update({ where: { id: existing.id }, data: { quantity: 0 } })
       } else {
