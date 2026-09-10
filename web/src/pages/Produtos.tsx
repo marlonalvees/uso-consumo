@@ -331,8 +331,8 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                         type="button"
                         onClick={() => handleToggleActive(item)}
                         disabled={savingId === item.id}
-                        className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-medium disabled:opacity-60 ${
-                          item.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${
+                          item.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
                         {item.active ? 'Ativo' : 'Inativo'}
@@ -430,8 +430,8 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                           type="button"
                           onClick={() => handleToggleActive(item)}
                           disabled={savingId === item.id}
-                          className={`inline-block rounded-full px-3 py-1 text-xs font-medium disabled:opacity-60 ${
-                            item.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          className={`inline-block rounded-full px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${
+                            item.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                           }`}
                         >
                           {item.active ? 'Ativo' : 'Inativo'}

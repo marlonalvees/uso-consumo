@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../lib/api'
 import type { Branch } from '../types'
 import { useAuth } from '../context/AuthContext'
@@ -19,13 +20,21 @@ export default function Pedidos() {
   const { user } = useAuth()
   const { orders } = useOrders()
   const toast = useToast()
+  const location = useLocation()
   const isAdmin = user?.isAdmin ?? false
 
   const [branches, setBranches] = useState<Branch[]>([])
   const [branchId, setBranchId] = useState<number | ''>('')
-  const [tab, setTab] = useState<Tab>('novo')
+  const [tab, setTab] = useState<Tab>(
+    (location.state as { tab?: Tab } | null)?.tab ?? 'novo',
+  )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const stateTab = (location.state as { tab?: Tab } | null)?.tab
+    if (stateTab) setTab(stateTab)
+  }, [location.state])
 
   useEffect(() => {
     if (!isAdmin) {
@@ -40,7 +49,7 @@ export default function Pedidos() {
       .get<Branch[]>('/branches')
       .then((data) => {
         setBranches(data)
-        if (data.length > 0) setBranchId(data[0].id)
+        setBranchId('')
       })
       .catch(() => {
         setError('Não foi possível carregar as filiais')
@@ -48,8 +57,6 @@ export default function Pedidos() {
       })
       .finally(() => setLoading(false))
   }, [isAdmin, user, toast])
-
-  const selectedBranchName = branches.find((b) => b.id === branchId)?.name
 
   const awaitingCount = useMemo(
     () =>
@@ -76,14 +83,15 @@ export default function Pedidos() {
         {branches.length > 0 && (isAdmin || branches.length > 1) && (
           <div className="sm:w-64">
             <label htmlFor="pedidos-branch" className="mb-1 block text-xs font-medium text-gray-500">
-              Filial
+              Filtrar por filial
             </label>
             <select
               id="pedidos-branch"
               value={branchId}
-              onChange={(e) => setBranchId(Number(e.target.value))}
+              onChange={(e) => setBranchId(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
             >
+              {isAdmin && <option value="">Todas as lojas</option>}
               {branches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -108,7 +116,7 @@ export default function Pedidos() {
                 key={t.value}
                 type="button"
                 onClick={() => setTab(t.value)}
-                className={`relative rounded-md px-3 py-2 text-sm font-medium transition sm:px-4 ${
+                className={`relative whitespace-nowrap rounded-md px-1.5 py-2 text-xs font-medium transition sm:px-4 sm:text-sm ${
                   tab === t.value
                     ? 'bg-novamix-teal/10 text-novamix-teal'
                     : 'text-gray-600 hover:text-gray-900'
@@ -116,7 +124,7 @@ export default function Pedidos() {
               >
                 {t.label}
                 {t.value === 'recentes' && awaitingCount > 0 && (
-                  <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-novamix-orange px-1 text-xs font-semibold text-white">
+                  <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-novamix-orange px-1 text-[10px] font-semibold text-white sm:ml-1.5 sm:h-5 sm:min-w-5 sm:text-xs">
                     {awaitingCount}
                   </span>
                 )}
@@ -126,10 +134,10 @@ export default function Pedidos() {
 
           {tab === 'novo' && (
             <NovoPedido
-              fixedBranchId={branchId === '' ? undefined : branchId}
-              fixedBranchName={selectedBranchName}
+              branches={branches}
               hideTitle
               onSuccess={() => setTab('recentes')}
+              onViewMyOrders={() => setTab('meus')}
             />
           )}
           {tab === 'recentes' && (

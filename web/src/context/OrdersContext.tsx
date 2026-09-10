@@ -15,6 +15,7 @@ interface OrdersContextValue {
   orders: Order[]
   loadingOrders: boolean
   pendingCount: number
+  myActiveOrder: Order | null
   refreshOrders: () => Promise<void>
   addOrder: (order: Order) => void
   updateOrder: (order: Order) => void
@@ -60,9 +61,14 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     [orders],
   )
 
+  const myActiveOrder = useMemo(
+    () => orders.find((o) => o.requestedBy.id === user?.id && o.status !== 'ENTREGUE') ?? null,
+    [orders, user],
+  )
+
   return (
     <OrdersContext.Provider
-      value={{ orders, loadingOrders, pendingCount, refreshOrders, addOrder, updateOrder }}
+      value={{ orders, loadingOrders, pendingCount, myActiveOrder, refreshOrders, addOrder, updateOrder }}
     >
       {children}
     </OrdersContext.Provider>

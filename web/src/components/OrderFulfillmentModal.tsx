@@ -268,7 +268,7 @@ export default function OrderFulfillmentModal({
                         type="button"
                         onClick={() => updateItemQuantity(row.itemId, -1)}
                         disabled={row.quantity === 0}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
                       >
                         −
                       </button>
@@ -285,7 +285,7 @@ export default function OrderFulfillmentModal({
                       <button
                         type="button"
                         onClick={() => updateItemQuantity(row.itemId, 1)}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal transition hover:bg-novamix-teal/10"
                       >
                         +
                       </button>
@@ -360,7 +360,7 @@ export default function OrderFulfillmentModal({
                         type="button"
                         onClick={() => updateExtraQuantity(index, -1)}
                         disabled={row.quantity === 0}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
                       >
                         −
                       </button>
@@ -377,7 +377,7 @@ export default function OrderFulfillmentModal({
                       <button
                         type="button"
                         onClick={() => updateExtraQuantity(index, 1)}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal transition hover:bg-novamix-teal/10"
                       >
                         +
                       </button>

@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 import GestaoPedidos from './GestaoPedidos'
 import GestaoEstoque from './GestaoEstoque'
 import GestaoCompras from './GestaoCompras'
+import { ClipboardIcon, CoinIcon, WarehouseIcon } from '../components/icons'
 
 type Tab = 'pedidos' | 'estoque' | 'compras'
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'pedidos', label: 'Gestão de pedidos' },
-  { value: 'estoque', label: 'Gestão de estoque' },
-  { value: 'compras', label: 'Gestão de compras' },
+const TABS: { value: Tab; label: string; Icon: ComponentType<{ className?: string }> }[] = [
+  { value: 'pedidos', label: 'Gestão de pedidos', Icon: ClipboardIcon },
+  { value: 'estoque', label: 'Gestão de estoque', Icon: WarehouseIcon },
+  { value: 'compras', label: 'Gestão de compras', Icon: CoinIcon },
 ]
 
 export default function Administracao() {
@@ -24,12 +25,13 @@ export default function Administracao() {
             key={t.value}
             type="button"
             onClick={() => setTab(t.value)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
               tab === t.value
                 ? 'bg-novamix-teal/10 text-novamix-teal'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
+            <t.Icon className="h-4 w-4" />
             {t.label}
           </button>
         ))}

@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import multer from 'multer'
 import { prisma } from '../lib/prisma'
 import { Prisma } from '../generated/prisma/client'
-import { uploadProductPhoto, deleteProductPhoto } from '../middlewares/upload'
+import { uploadProductPhoto, deleteUploadedFile } from '../middlewares/upload'
 
 const ITEM_INCLUDE = {
   category: true,
@@ -174,12 +174,12 @@ export function uploadItemPhoto(req: Request, res: Response) {
     const relativePath = `produtos/${req.file.filename}`
     const existing = await prisma.item.findUnique({ where: { id } })
     if (!existing) {
-      deleteProductPhoto(relativePath)
+      deleteUploadedFile(relativePath)
       res.status(404).json({ error: 'Item não encontrado' })
       return
     }
 
-    if (existing.photoPath) deleteProductPhoto(existing.photoPath)
+    if (existing.photoPath) deleteUploadedFile(existing.photoPath)
 
     const item = await prisma.item.update({
       where: { id },
@@ -202,7 +202,7 @@ export async function removeItemPhoto(req: Request, res: Response) {
     res.status(404).json({ error: 'Item não encontrado' })
     return
   }
-  if (existing.photoPath) deleteProductPhoto(existing.photoPath)
+  if (existing.photoPath) deleteUploadedFile(existing.photoPath)
 
   const item = await prisma.item.update({
     where: { id },
@@ -227,7 +227,7 @@ export async function deleteItem(req: Request, res: Response) {
 
   try {
     await prisma.item.delete({ where: { id } })
-    if (existing.photoPath) deleteProductPhoto(existing.photoPath)
+    if (existing.photoPath) deleteUploadedFile(existing.photoPath)
     res.status(204).send()
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {

@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { api, ApiError, assetUrl } from '../lib/api'
-import type { Item, Order } from '../types'
+import type { Branch, Item, Order } from '../types'
 import { useOrders } from '../context/OrdersContext'
 import { useItems } from '../context/ItemsContext'
 import { useAuth } from '../context/AuthContext'
+import { useCategories } from '../context/CategoriesContext'
 import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PhotoLightbox from '../components/PhotoLightbox'
-import { AlertIcon, ImageIcon, SearchIcon, ZoomInIcon } from '../components/icons'
+import { ImageIcon, SearchIcon, ZoomInIcon } from '../components/icons'
 import { normalizeText } from '../lib/text'
 import { STATUS_LABELS } from '../lib/orderStatus'
 
@@ -23,38 +24,35 @@ function createEmptyExtraRow(): ExtraRow {
 
 interface NovoPedidoProps {
   readOnly?: boolean
-  fixedBranchId?: number
-  fixedBranchName?: string
+  branches?: Branch[]
   hideTitle?: boolean
   onSuccess?: () => void
+  onViewMyOrders?: () => void
 }
 
 export default function NovoPedido({
   readOnly = false,
-  fixedBranchId,
-  fixedBranchName,
+  branches: branchesProp,
   hideTitle = false,
   onSuccess,
+  onViewMyOrders,
 }: NovoPedidoProps = {}) {
-  const { orders, addOrder } = useOrders()
+  const { addOrder, myActiveOrder } = useOrders()
   const { items, loadingItems } = useItems()
   const { user } = useAuth()
+  const { categories } = useCategories()
   const toast = useToast()
-  const branches = user?.branches ?? []
+  const branches = branchesProp ?? user?.branches ?? []
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [extraRows, setExtraRows] = useState<ExtraRow[]>([createEmptyExtraRow()])
-  const [branchId, setBranchId] = useState<number | ''>(
-    fixedBranchId ?? (branches.length === 1 ? branches[0].id : ''),
-  )
+  const [branchId, setBranchId] = useState<number | ''>(branches.length === 1 ? branches[0].id : '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [previewItem, setPreviewItem] = useState<Item | null>(null)
-
-  useEffect(() => {
-    if (fixedBranchId !== undefined) setBranchId(fixedBranchId)
-  }, [fixedBranchId])
 
   function updateQuantity(itemId: string, delta: number) {
     setQuantities((prev) => {
@@ -78,32 +76,23 @@ export default function NovoPedido({
 
   const selectedItems = Object.entries(quantities).filter(([, qty]) => qty > 0)
   const validExtraRows = extraRows.filter((row) => row.name.trim().length > 0 && row.quantity > 0)
-  const selectedBranchName = fixedBranchName ?? branches.find((b) => b.id === branchId)?.name
-
-  const openOrdersForBranch = useMemo(
-    () =>
-      branchId
-        ? orders
-            .filter((order) => order.branchId === branchId && order.status !== 'ENTREGUE')
-            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        : [],
-    [orders, branchId],
-  )
 
   function handleSubmit() {
     setError(null)
-    if (!branchId) {
-      setError('Selecione a filial')
-      return
-    }
     if (selectedItems.length === 0 && validExtraRows.length === 0) {
       setError('Selecione ao menos um item')
       return
     }
+    setConfirmError(null)
     setConfirmOpen(true)
   }
 
   async function handleConfirmSubmit() {
+    if (!branchId) {
+      setConfirmError('Selecione a filial')
+      return
+    }
+    setConfirmError(null)
     setSubmitting(true)
     try {
       const created = await api.post<Order>('/orders', {
@@ -129,9 +118,15 @@ export default function NovoPedido({
   }
 
   const normalizedSearch = normalizeText(search)
-  const visibleItems = normalizedSearch
-    ? items.filter((item) => normalizeText(item.name).includes(normalizedSearch))
-    : items
+  const visibleItems = items.filter((item) => {
+    if (categoryFilter && item.categoryId !== categoryFilter) return false
+    if (normalizedSearch && !normalizeText(item.name).includes(normalizedSearch)) return false
+    return true
+  })
+
+  const categoriesWithItems = categories.filter((category) =>
+    items.some((item) => item.categoryId === category.id),
+  )
 
   const categoriesById = new Map(visibleItems.map((item) => [item.categoryId, item.category]))
   const itemsByCategory = [...categoriesById.values()]
@@ -143,7 +138,7 @@ export default function NovoPedido({
 
   const totalSelected = selectedItems.length + validExtraRows.length
 
-  if (!readOnly && fixedBranchId === undefined && branches.length === 0) {
+  if (!readOnly && branches.length === 0) {
     return (
       <div>
         {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
@@ -154,88 +149,35 @@ export default function NovoPedido({
     )
   }
 
+  if (!readOnly && myActiveOrder) {
+    return (
+      <div>
+        {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
+        <div className="rounded-xl border border-novamix-orange/30 bg-novamix-orange/5 p-4">
+          <p className="text-sm text-gray-700">
+            Você já tem um pedido <strong>{STATUS_LABELS[myActiveOrder.status].toLowerCase()}</strong>{' '}
+            para a filial <strong>{myActiveOrder.branch.name}</strong>. Aguarde a finalização desse
+            pedido antes de criar um novo.
+          </p>
+          {onViewMyOrders && (
+            <button
+              type="button"
+              onClick={onViewMyOrders}
+              className="mt-3 rounded-lg bg-novamix-teal px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark"
+            >
+              Ver meus pedidos
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={readOnly ? '' : 'pb-[calc(6rem+env(safe-area-inset-bottom))]'}>
       {!hideTitle && <h1 className="mb-4 text-2xl font-semibold text-gray-900">Novo pedido</h1>}
 
-      {!readOnly && fixedBranchId === undefined && (
-        <div className="mb-6">
-          <label htmlFor="branch" className="mb-1 block text-sm font-medium text-gray-700">
-            Filial
-          </label>
-          {branches.length === 1 ? (
-            <p className="text-sm text-gray-900">{branches[0].name}</p>
-          ) : (
-            <select
-              id="branch"
-              value={branchId}
-              onChange={(e) => setBranchId(Number(e.target.value))}
-              className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-            >
-              <option value="" disabled>
-                Selecione a filial
-              </option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-
-      {!readOnly && openOrdersForBranch.length > 0 && (
-        <div className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4">
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-              <AlertIcon className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-amber-900">
-                {selectedBranchName ?? 'Esta filial'} já tem {openOrdersForBranch.length === 1 ? 'um pedido em aberto' : 'pedidos em aberto'}
-              </p>
-              <p className="mt-0.5 text-sm text-amber-800">
-                Confira antes de enviar um novo pedido, para evitar duplicidade.
-              </p>
-              <div className="mt-3 space-y-3">
-                {openOrdersForBranch.map((order) => {
-                  const orderEntries = [
-                    ...order.items
-                      .filter((oi) => oi.quantity > 0)
-                      .map((oi) => ({ id: oi.id, name: oi.item.name, quantity: oi.quantity })),
-                    ...order.extraItems
-                      .filter((ei) => ei.quantity > 0)
-                      .map((ei) => ({ id: ei.id, name: ei.name, quantity: ei.quantity })),
-                  ]
-                  return (
-                    <div key={order.id} className="rounded-lg border border-amber-200 bg-white p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-700">
-                        <span className="font-medium">
-                          Pedido de {new Date(order.createdAt).toLocaleDateString('pt-BR')} — {order.requestedBy.name}
-                        </span>
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold uppercase tracking-wide">
-                          {STATUS_LABELS[order.status]}
-                        </span>
-                      </div>
-                      <ul className="mt-2 space-y-1 text-sm text-gray-700">
-                        {orderEntries.map((entry) => (
-                          <li key={entry.id} className="flex items-center justify-between gap-2">
-                            <span className="truncate">{entry.name}</span>
-                            <span className="shrink-0 font-medium text-gray-900">{entry.quantity}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="relative mb-6">
+      <div className="relative mb-3">
         <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
           <SearchIcon className="h-4 w-4" />
         </span>
@@ -248,32 +190,64 @@ export default function NovoPedido({
         />
       </div>
 
-      {normalizedSearch && itemsByCategory.length === 0 && (
+      {categoriesWithItems.length > 1 && (
+        <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter('')}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+              categoryFilter === ''
+                ? 'bg-novamix-orange text-white hover:bg-novamix-orange-dark'
+                : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
+            }`}
+          >
+            Todas
+          </button>
+          {categoriesWithItems.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => setCategoryFilter(category.id)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                categoryFilter === category.id
+                  ? 'bg-novamix-orange text-white hover:bg-novamix-orange-dark'
+                  : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:text-gray-900'
+              }`}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {itemsByCategory.length === 0 && (
         <p className="mb-6 text-sm text-gray-500">
-          Nenhum produto encontrado para "{search.trim()}".
+          {normalizedSearch ? `Nenhum produto encontrado para "${search.trim()}".` : 'Nenhum produto nessa categoria.'}
         </p>
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         {itemsByCategory.map((group) => (
           <div key={group.category.id}>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
-              {group.category.name}
-            </h2>
+            {categoryFilter === '' && (
+              <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-novamix-teal-dark">
+                {group.category.name}
+              </h2>
+            )}
             <ul className="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
               {group.items.map((item) => {
                 const quantity = quantities[item.id] ?? 0
                 return (
                   <li
                     key={item.id}
-                    className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                    className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                   >
-                    <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => item.photoPath && setPreviewItem(item)}
                         aria-label={item.photoPath ? `Ver foto de ${item.name}` : undefined}
-                        className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-300 ${
+                        className={`relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-300 ${
                           item.photoPath ? '' : 'pointer-events-none'
                         }`}
                       >
@@ -289,20 +263,20 @@ export default function NovoPedido({
                             </span>
                           </>
                         ) : (
-                          <ImageIcon className="h-5 w-5" />
+                          <ImageIcon className="h-4 w-4" />
                         )}
                       </button>
                       <div className="min-w-0">
-                        <p className="font-medium text-gray-900">{item.name}</p>
-                        <p className="text-sm text-gray-500">{item.packaging.name}</p>
+                        <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                        <p className="text-xs text-gray-500">{item.packaging.name}</p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-end gap-3 sm:justify-start">
+                    <div className="flex items-center justify-end gap-2.5 sm:justify-start">
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.id, -1)}
                         disabled={quantity === 0}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
                       >
                         −
                       </button>
@@ -310,7 +284,7 @@ export default function NovoPedido({
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.id, 1)}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal transition hover:bg-novamix-teal/10"
                       >
                         +
                       </button>
@@ -341,7 +315,7 @@ export default function NovoPedido({
                     type="button"
                     onClick={() => updateExtraRow(row.id, { quantity: Math.max(0, row.quantity - 1) })}
                     disabled={row.quantity === 0}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 disabled:opacity-30"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 text-lg font-semibold text-gray-700 transition hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
                   >
                     −
                   </button>
@@ -349,7 +323,7 @@ export default function NovoPedido({
                   <button
                     type="button"
                     onClick={() => updateExtraRow(row.id, { quantity: row.quantity + 1 })}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-novamix-teal text-lg font-semibold text-novamix-teal transition hover:bg-novamix-teal/10"
                   >
                     +
                   </button>
@@ -402,21 +376,45 @@ export default function NovoPedido({
         title="Confirmar envio do pedido"
         message={
           <>
-            Você está enviando <strong>{totalSelected}</strong>{' '}
-            {totalSelected === 1 ? 'item' : 'itens'}
-            {selectedBranchName ? (
-              <>
-                {' '}
-                para <strong>{selectedBranchName}</strong>
-              </>
-            ) : null}
-            . Depois de enviado, a central vai conferir o que tem em estoque antes de despachar.
+            <p>
+              Você está enviando <strong>{totalSelected}</strong>{' '}
+              {totalSelected === 1 ? 'item' : 'itens'}. Depois de enviado, a central vai conferir o
+              que tem em estoque antes de despachar.
+            </p>
+            <div className="mt-3">
+              <label htmlFor="confirm-branch" className="mb-1 block text-xs font-medium text-gray-500">
+                Para qual filial é esse pedido?
+              </label>
+              {branches.length === 1 ? (
+                <p className="text-sm font-medium text-gray-900">{branches[0].name}</p>
+              ) : (
+                <select
+                  id="confirm-branch"
+                  value={branchId}
+                  onChange={(e) => setBranchId(Number(e.target.value))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
+                >
+                  <option value="" disabled>
+                    Selecione a filial
+                  </option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {confirmError && <p className="mt-2 text-sm text-red-600">{confirmError}</p>}
+            </div>
           </>
         }
         confirmLabel="Enviar pedido"
         loading={submitting}
         onConfirm={handleConfirmSubmit}
-        onCancel={() => setConfirmOpen(false)}
+        onCancel={() => {
+          setConfirmOpen(false)
+          setConfirmError(null)
+        }}
       />
 
       <PhotoLightbox

@@ -91,6 +91,7 @@ export interface Purchase {
   supplierId: string
   supplier: Supplier
   notes: string | null
+  invoicePath: string | null
   createdAt: string
   items: PurchaseItem[]
 }

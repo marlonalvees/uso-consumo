@@ -163,8 +163,8 @@ export default function Fornecedores({ hideTitle = false }: FornecedoresProps = 
                     type="button"
                     onClick={() => handleToggleActive(supplier)}
                     disabled={savingId === supplier.id}
-                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium disabled:opacity-60 ${
-                      supplier.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${
+                      supplier.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
                     {supplier.active ? 'Ativo' : 'Inativo'}
@@ -236,8 +236,8 @@ export default function Fornecedores({ hideTitle = false }: FornecedoresProps = 
                         type="button"
                         onClick={() => handleToggleActive(supplier)}
                         disabled={savingId === supplier.id}
-                        className={`inline-block rounded-full px-3 py-1 text-xs font-medium disabled:opacity-60 ${
-                          supplier.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                        className={`inline-block rounded-full px-3 py-1 text-xs font-medium transition disabled:opacity-60 ${
+                          supplier.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
                         {supplier.active ? 'Ativo' : 'Inativo'}
