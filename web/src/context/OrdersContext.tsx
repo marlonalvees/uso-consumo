@@ -61,8 +61,12 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     [orders],
   )
 
+  // a trava de um pedido em aberto por vez vale só pro supervisor (o admin faz pedidos pra várias filiais)
   const myActiveOrder = useMemo(
-    () => orders.find((o) => o.requestedBy.id === user?.id && o.status !== 'ENTREGUE') ?? null,
+    () =>
+      user?.isAdmin
+        ? null
+        : (orders.find((o) => o.requestedBy.id === user?.id && o.status !== 'ENTREGUE') ?? null),
     [orders, user],
   )
 

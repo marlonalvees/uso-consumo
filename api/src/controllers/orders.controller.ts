@@ -40,16 +40,18 @@ export async function createOrder(req: Request, res: Response) {
       res.status(403).json({ error: 'Filial informada não está liberada para este usuário' })
       return
     }
-  }
 
-  const existingActiveOrder = await prisma.order.findFirst({
-    where: { requestedById: req.auth!.sub, status: { not: OrderStatus.ENTREGUE } },
-  })
-  if (existingActiveOrder) {
-    res.status(409).json({
-      error: 'Você já tem um pedido em andamento. Aguarde a finalização dele antes de criar um novo.',
+    // a trava de um pedido em aberto por vez vale só pro supervisor — o admin faz pedidos
+    // pra várias filiais e precisa poder ter mais de um em aberto
+    const existingActiveOrder = await prisma.order.findFirst({
+      where: { requestedById: req.auth!.sub, status: { not: OrderStatus.ENTREGUE } },
     })
-    return
+    if (existingActiveOrder) {
+      res.status(409).json({
+        error: 'Você já tem um pedido em andamento. Aguarde a finalização dele antes de criar um novo.',
+      })
+      return
+    }
   }
 
   const hasItems = Array.isArray(items) && items.length > 0
