@@ -4,6 +4,8 @@ node_modules
 
 /src/generated/prisma
 
-# Fotos enviadas de produtos — ficam num volume Docker, não em versionamento
+# Fotos enviadas de produtos e de notas fiscais — ficam num volume Docker, não em versionamento
 /src/uploads/produtos/*
 !/src/uploads/produtos/.gitkeep
+/src/uploads/notas-fiscais/*
+!/src/uploads/notas-fiscais/.gitkeep
