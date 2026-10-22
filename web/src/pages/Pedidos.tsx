@@ -5,6 +5,7 @@ import type { Branch } from '../types'
 import { useAuth } from '../context/AuthContext'
 import { useOrders } from '../context/OrdersContext'
 import { useToast } from '../context/ToastContext'
+import { useNavigationFocus } from '../hooks/useNavigationFocus'
 import NovoPedido from './NovoPedido'
 import MeusPedidos from './MeusPedidos'
 
@@ -30,11 +31,7 @@ export default function Pedidos() {
   )
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const stateTab = (location.state as { tab?: Tab } | null)?.tab
-    if (stateTab) setTab(stateTab)
-  }, [location.state])
+  const focusOrderId = useNavigationFocus<string>('focusOrderId')
 
   useEffect(() => {
     if (!isAdmin) {
@@ -57,6 +54,14 @@ export default function Pedidos() {
       })
       .finally(() => setLoading(false))
   }, [isAdmin, user, toast])
+
+  // depois do efeito acima, pra filial vinda da navegação (barra de status do topo) prevalecer
+  // sobre a filial padrão do supervisor
+  useEffect(() => {
+    const state = location.state as { tab?: Tab; branchId?: number } | null
+    if (state?.tab) setTab(state.tab)
+    if (state?.branchId) setBranchId(state.branchId)
+  }, [location.state])
 
   const awaitingCount = useMemo(
     () =>
@@ -143,11 +148,14 @@ export default function Pedidos() {
           {tab === 'recentes' && (
             <MeusPedidos branchId={branchId === '' ? undefined : branchId} hideTitle />
           )}
+          {/* key: cada navegação pra cá remonta com os filtros limpos, pra que o pedido destacado apareça */}
           {tab === 'meus' && (
             <MeusPedidos
+              key={location.key}
               branchId={branchId === '' ? undefined : branchId}
               onlyMine
               hideTitle
+              focusOrderId={focusOrderId}
             />
           )}
         </>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiError, api } from '../lib/api';
 import type { Order, OrderStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ import { usePrintOrder } from '../hooks/usePrintOrder';
 interface OrderCardProps {
   order: Order;
   highlighted?: boolean;
+  focused?: boolean;
   confirmingId: string | null;
   onConfirm: (order: Order) => void;
   onPrint: (order: Order) => void;
@@ -25,14 +26,13 @@ interface OrderCardProps {
   canEdit?: boolean;
 }
 
-function OrderCard({ order, highlighted, confirmingId, onConfirm, onPrint, onEdit, readOnly, canEdit }: OrderCardProps) {
+function OrderCard({ order, highlighted, focused, confirmingId, onConfirm, onPrint, onEdit, readOnly, canEdit }: OrderCardProps) {
   return (
     <li
-      className={`rounded-xl border p-4 ${
-        highlighted
-          ? 'border-novamix-orange/40 bg-novamix-orange/5 ring-1 ring-novamix-orange/20'
-          : 'border-gray-200 bg-white'
-      }`}
+      id={`pedido-${order.id}`}
+      className={`rounded-xl border p-4 transition-shadow duration-700 ${
+        highlighted ? 'border-novamix-orange/40 bg-novamix-orange/5' : 'border-gray-200 bg-white'
+      } ${focused ? 'ring-2 ring-novamix-orange' : highlighted ? 'ring-1 ring-novamix-orange/20' : ''}`}
     >
       <div className="mb-4">
         <p className="font-medium text-gray-900">{order.branch.name}</p>
@@ -130,6 +130,8 @@ interface MeusPedidosProps {
   readOnly?: boolean;
   hideTitle?: boolean;
   onlyMine?: boolean;
+  // pedido a destacar, vindo da barra de status do topo (ver Pedidos)
+  focusOrderId?: string | null;
 }
 
 export default function MeusPedidos({
@@ -137,6 +139,7 @@ export default function MeusPedidos({
   readOnly = false,
   hideTitle = false,
   onlyMine = false,
+  focusOrderId = null,
 }: MeusPedidosProps = {}) {
   const { user } = useAuth();
   const { orders: allOrders, loadingOrders: loading, updateOrder } = useOrders();
@@ -151,6 +154,15 @@ export default function MeusPedidos({
   const [datePreset, setDatePreset] = useState<DatePreset>('todos');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+
+  // abre o mês do pedido destacado (se estiver recolhido) e rola até ele
+  useEffect(() => {
+    if (!focusOrderId || loading) return;
+    const card = document.getElementById(`pedido-${focusOrderId}`);
+    const monthGroup = card?.closest('details');
+    if (monthGroup) monthGroup.open = true;
+    card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusOrderId, loading]);
 
   function handleRequestConfirm(order: Order) {
     setConfirmTarget(order);
@@ -306,6 +318,7 @@ export default function MeusPedidos({
                   key={order.id}
                   order={order}
                   highlighted
+                  focused={order.id === focusOrderId}
                   confirmingId={confirmingId}
                   onConfirm={handleRequestConfirm}
                   onPrint={printOrder}
@@ -335,6 +348,7 @@ export default function MeusPedidos({
                   <OrderCard
                     key={order.id}
                     order={order}
+                    focused={order.id === focusOrderId}
                     confirmingId={confirmingId}
                     onConfirm={handleRequestConfirm}
                     onPrint={printOrder}

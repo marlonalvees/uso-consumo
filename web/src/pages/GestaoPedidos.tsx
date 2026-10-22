@@ -6,6 +6,7 @@ import OrderPrintSheet from '../components/OrderPrintSheet'
 import OrderFulfillmentModal from '../components/OrderFulfillmentModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { usePrintOrder } from '../hooks/usePrintOrder'
+import { useOrders } from '../context/OrdersContext'
 import { useToast } from '../context/ToastContext'
 
 const COLUMNS: { status: OrderStatus; label: string }[] = [
@@ -17,13 +18,14 @@ const COLUMNS: { status: OrderStatus; label: string }[] = [
 
 interface OrderCardProps {
   order: Order
+  highlighted: boolean
   updating: boolean
   onEditItems?: () => void
   onAdvance?: { label: string; onClick: () => void }
   onPrint: () => void
 }
 
-function OrderCard({ order, updating, onEditItems, onAdvance, onPrint }: OrderCardProps) {
+function OrderCard({ order, highlighted, updating, onEditItems, onAdvance, onPrint }: OrderCardProps) {
   const totalQty =
     order.items.reduce((sum, i) => sum + i.quantity, 0) +
     order.extraItems.reduce((sum, i) => sum + i.quantity, 0)
@@ -34,7 +36,11 @@ function OrderCard({ order, updating, onEditItems, onAdvance, onPrint }: OrderCa
     ].join(', ') || 'Sem itens confirmados'
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+    <div
+      className={`rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-shadow duration-700 ${
+        highlighted ? 'ring-2 ring-novamix-orange' : ''
+      }`}
+    >
       <p className="text-sm font-semibold text-gray-900">{order.branch.name}</p>
       <p className="text-xs text-gray-500">
         {new Date(order.createdAt).toLocaleDateString('pt-BR')} · {order.requestedBy.name}
@@ -73,10 +79,14 @@ function OrderCard({ order, updating, onEditItems, onAdvance, onPrint }: OrderCa
   )
 }
 
-export default function GestaoPedidos() {
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+interface GestaoPedidosProps {
+  // estágio a destacar, vindo da barra de status do topo (ver Administracao)
+  highlightStatus?: OrderStatus | null
+}
+
+export default function GestaoPedidos({ highlightStatus = null }: GestaoPedidosProps) {
+  // mesma lista da barra de status do topo: o que muda aqui reflete na barra na hora
+  const { orders, loadingOrders: loading, refreshOrders, updateOrder } = useOrders()
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [confirmShip, setConfirmShip] = useState<Order | null>(null)
@@ -90,21 +100,22 @@ export default function GestaoPedidos() {
   const [filterUser, setFilterUser] = useState<number | ''>('')
   const [filterItem, setFilterItem] = useState('')
 
-  function loadOrders() {
-    api
-      .get<Order[]>('/orders')
-      .then(setOrders)
-      .catch(() => setError('Não foi possível carregar os pedidos'))
-      .finally(() => setLoading(false))
-  }
+  useEffect(() => {
+    refreshOrders()
+  }, [refreshOrders])
 
-  useEffect(loadOrders, [])
+  useEffect(() => {
+    if (!highlightStatus || loading) return
+    document
+      .getElementById(`coluna-${highlightStatus}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [highlightStatus, loading])
 
   async function handleStatusChange(orderId: string, status: OrderStatus, successMessage: string) {
     setUpdatingId(orderId)
     try {
       const updated = await api.patch<Order>(`/orders/${orderId}/status`, { status })
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)))
+      updateOrder(updated)
       toast.success(successMessage)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Não foi possível atualizar o status')
@@ -120,7 +131,7 @@ export default function GestaoPedidos() {
   }
 
   function handleFulfillmentSaved(updated: Order) {
-    setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)))
+    updateOrder(updated)
     setEditingOrder(null)
   }
 
@@ -170,8 +181,6 @@ export default function GestaoPedidos() {
   return (
     <div>
       <div className="print:hidden">
-        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-
         {orders.length > 0 && (
           <div className="mb-4 space-y-3">
             <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-white p-1">
@@ -259,7 +268,11 @@ export default function GestaoPedidos() {
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
             {columns.map((col) => (
-              <div key={col.status} className="flex min-w-0 flex-col rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <div
+                key={col.status}
+                id={`coluna-${col.status}`}
+                className="flex min-w-0 scroll-mt-20 flex-col rounded-xl border border-gray-200 bg-gray-50 p-3 lg:scroll-mt-6"
+              >
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-gray-700">{col.label}</h2>
                   <span className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-500">
@@ -274,6 +287,7 @@ export default function GestaoPedidos() {
                       <OrderCard
                         key={order.id}
                         order={order}
+                        highlighted={highlightStatus === col.status}
                         updating={updatingId === order.id}
                         onPrint={() => printOrder(order)}
                         onEditItems={() => setEditingOrder(order)}

@@ -24,4 +24,5 @@ export {
   PackageSearch as PackageSearchIcon,
   PackageCheck as PackageCheckIcon,
   Receipt as ReceiptIcon,
+  ChevronRight as ChevronRightIcon,
 } from 'lucide-react'

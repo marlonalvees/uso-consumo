@@ -37,6 +37,19 @@ body {
       opacity: 0.4;
     }
   }
+
+  /* atravessa a barra no primeiro 1,5s e fica parado fora dela até completar os 15s */
+  --animate-shine: shine 15s ease-in-out infinite both;
+
+  @keyframes shine {
+    0% {
+      transform: translateX(-100%);
+    }
+    10%,
+    100% {
+      transform: translateX(100%);
+    }
+  }
 }
 
 @media print {

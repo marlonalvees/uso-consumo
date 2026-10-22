@@ -1,4 +1,7 @@
-import { useState, type ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
+import { useLocation } from 'react-router-dom'
+import type { OrderStatus } from '../types'
+import { useNavigationFocus } from '../hooks/useNavigationFocus'
 import GestaoPedidos from './GestaoPedidos'
 import GestaoEstoque from './GestaoEstoque'
 import GestaoCompras from './GestaoCompras'
@@ -13,7 +16,14 @@ const TABS: { value: Tab; label: string; Icon: ComponentType<{ className?: strin
 ]
 
 export default function Administracao() {
+  const location = useLocation()
   const [tab, setTab] = useState<Tab>('pedidos')
+  const focusStatus = useNavigationFocus<OrderStatus>('focusStatus')
+
+  useEffect(() => {
+    const stateTab = (location.state as { tab?: Tab } | null)?.tab
+    if (stateTab) setTab(stateTab)
+  }, [location.state])
 
   return (
     <div>
@@ -37,7 +47,9 @@ export default function Administracao() {
         ))}
       </div>
 
-      {tab === 'pedidos' && <GestaoPedidos />}
+      {/* key: cada navegação pra cá (ex.: clique na barra de status) remonta com os filtros limpos,
+          pra que os pedidos destacados apareçam */}
+      {tab === 'pedidos' && <GestaoPedidos key={location.key} highlightStatus={focusStatus} />}
       {tab === 'estoque' && <GestaoEstoque />}
       {tab === 'compras' && <GestaoCompras />}
     </div>
