@@ -314,7 +314,7 @@ export default function GestaoPedidos() {
         message={
           <>
             Confirma o envio do pedido da filial <strong>{confirmShip?.branch.name}</strong>? O
-            estoque dos itens será baixado e o pedido não poderá mais ser editado.
+            estoque dos itens será baixado.
           </>
         }
         confirmLabel="Marcar como enviado"
