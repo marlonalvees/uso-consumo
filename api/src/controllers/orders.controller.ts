@@ -15,22 +15,6 @@ const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
   OrderStatus.ENVIADO,
 ]
 
-// soma por produto o que o pedido vai tirar do estoque e lista os que não têm saldo suficiente
-function describeStockShortages(
-  orderItems: { itemId: string; quantity: number; item: { name: string; stockQuantity: number } }[],
-): string[] {
-  const totals = new Map<string, { name: string; stock: number; quantity: number }>()
-  for (const { itemId, quantity, item } of orderItems) {
-    if (quantity <= 0) continue
-    const total = totals.get(itemId) ?? { name: item.name, stock: item.stockQuantity, quantity: 0 }
-    total.quantity += quantity
-    totals.set(itemId, total)
-  }
-  return [...totals.values()]
-    .filter((total) => total.quantity > total.stock)
-    .map((total) => `"${total.name}" (pedido: ${total.quantity}, disponível: ${total.stock})`)
-}
-
 export async function createOrder(req: Request, res: Response) {
   const { branchId, items, extras } = req.body as {
     branchId?: number
@@ -156,7 +140,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
     return
   }
 
-  const order = await prisma.order.findUnique({ where: { id }, include: { items: { include: { item: true } } } })
+  const order = await prisma.order.findUnique({ where: { id }, include: { items: true } })
   if (!order) {
     res.status(404).json({ error: 'Pedido não encontrado' })
     return
@@ -169,13 +153,6 @@ export async function updateOrderStatus(req: Request, res: Response) {
   if (status === OrderStatus.ENVIADO) {
     const alreadyShipped = await prisma.stockMovement.findFirst({ where: { orderId: id, type: 'SAIDA' } })
     if (!alreadyShipped) {
-      const shortages = describeStockShortages(order.items)
-      if (shortages.length > 0) {
-        res.status(400).json({
-          error: `Estoque insuficiente para enviar ${shortages.join(', ')} — ajuste as quantidades do pedido ou dê entrada no estoque antes`,
-        })
-        return
-      }
       await prisma.$transaction(async (tx) => {
         for (const orderItem of order.items) {
           if (orderItem.quantity <= 0) continue

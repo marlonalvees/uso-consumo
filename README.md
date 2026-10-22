@@ -95,8 +95,8 @@ Os três primeiros são avançados pelo admin, na Administração ("Gestão de
 pedidos"). O admin pode ajustar os itens/quantidades (adicionar, remover,
 alterar) pra refletir o que realmente será enviado — nem sempre o que a
 filial pediu é o que a central tem em estoque. Ao marcar como `Enviado`, o
-estoque dos itens é baixado; se algum item não tiver estoque suficiente, o
-envio é bloqueado até o pedido ser ajustado ou o estoque receber entrada.
+estoque dos itens é baixado. O envio não confere o saldo de propósito: nem
+sempre o estoque está atualizado, então ele pode ficar negativo.
 Depois de enviado, o admin ainda pode ajustar os itens, e a diferença volta
 ou sai do estoque automaticamente. O último estágio (`Entregue`) só é setado
 quando o supervisor da filial confirma o recebimento na tela "Meus pedidos".
