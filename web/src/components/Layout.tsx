@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import ConfirmDialog from './ConfirmDialog'
+import OrderStatusBanner from './OrderStatusBanner'
 import { useOrders } from '../context/OrdersContext'
 
 export default function Layout() {
@@ -24,6 +25,7 @@ export default function Layout() {
       <Sidebar />
       <main className="flex flex-1 min-w-0 flex-col lg:ml-64">
         <div className="mx-auto w-full max-w-5xl flex-1 px-4 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:pt-6 lg:pb-6 print:max-w-none print:p-0">
+          <OrderStatusBanner />
           <Outlet />
         </div>
         <footer className="border-t border-gray-200 px-4 py-4 text-center text-xs text-gray-500 print:hidden">

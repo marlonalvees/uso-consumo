@@ -29,6 +29,14 @@ body {
   --color-orange-base: #ea8006;
   --color-red-light: #f72b2a;
   --color-red-base: #df0406;
+
+  --animate-blink: blink 1s ease-in-out infinite;
+
+  @keyframes blink {
+    50% {
+      opacity: 0.4;
+    }
+  }
 }
 
 @media print {

@@ -21,6 +21,8 @@ interface OrdersContextValue {
   updateOrder: (order: Order) => void
 }
 
+const ORDERS_POLL_MS = 30_000
+
 const OrdersContext = createContext<OrdersContextValue | undefined>(undefined)
 
 export function OrdersProvider({ children }: { children: ReactNode }) {
@@ -47,6 +49,15 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshOrders()
   }, [refreshOrders])
+
+  // mantém os avisos de pedido (barra do topo) atualizados sem precisar recarregar a página
+  useEffect(() => {
+    if (!user) return
+    const id = setInterval(() => {
+      if (!document.hidden) refreshOrders()
+    }, ORDERS_POLL_MS)
+    return () => clearInterval(id)
+  }, [user, refreshOrders])
 
   const addOrder = useCallback((order: Order) => {
     setOrders((prev) => [order, ...prev])
