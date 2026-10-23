@@ -17,6 +17,11 @@ interface SupplierBody {
   phone?: string | null
   email?: string | null
   active?: boolean
+  leadTimeDays?: number | null
+}
+
+function invalidLeadTime(value: unknown): boolean {
+  return value !== undefined && value !== null && (!Number.isInteger(value) || (value as number) < 0 || (value as number) > 365)
 }
 
 function normalizeCnpj(cnpj: string): string {
@@ -30,9 +35,13 @@ function conflictMessage(err: Prisma.PrismaClientKnownRequestError): string {
 }
 
 export async function createSupplier(req: Request, res: Response) {
-  const { name, cnpj, phone, email } = req.body as SupplierBody
+  const { name, cnpj, phone, email, leadTimeDays } = req.body as SupplierBody
   if (!name?.trim()) {
     res.status(400).json({ error: 'name é obrigatório' })
+    return
+  }
+  if (invalidLeadTime(leadTimeDays)) {
+    res.status(400).json({ error: 'O prazo de entrega deve ser um número de dias entre 0 e 365' })
     return
   }
 
@@ -49,6 +58,7 @@ export async function createSupplier(req: Request, res: Response) {
         cnpj: normalizedCnpj,
         phone: phone?.trim() || undefined,
         email: email?.trim() || undefined,
+        leadTimeDays: leadTimeDays ?? undefined,
       },
     })
     res.status(201).json(supplier)
@@ -67,10 +77,14 @@ export async function updateSupplier(req: Request, res: Response) {
     res.status(400).json({ error: 'Id do fornecedor inválido' })
     return
   }
-  const { name, cnpj, phone, email, active } = req.body as SupplierBody
+  const { name, cnpj, phone, email, active, leadTimeDays } = req.body as SupplierBody
 
   if (name !== undefined && !name.trim()) {
     res.status(400).json({ error: 'name não pode ser vazio' })
+    return
+  }
+  if (invalidLeadTime(leadTimeDays)) {
+    res.status(400).json({ error: 'O prazo de entrega deve ser um número de dias entre 0 e 365' })
     return
   }
 
@@ -102,6 +116,7 @@ export async function updateSupplier(req: Request, res: Response) {
         phone: phone === undefined ? undefined : phone?.trim() || null,
         email: email === undefined ? undefined : email?.trim() || null,
         active,
+        leadTimeDays,
       },
     })
     res.json(supplier)

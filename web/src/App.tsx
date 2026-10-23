@@ -9,7 +9,13 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Pedidos from './pages/Pedidos'
-import Administracao from './pages/Administracao'
+import Acompanhar from './pages/Acompanhar'
+import Historico from './pages/Historico'
+import MinhaFilial from './pages/MinhaFilial'
+import GestaoPedidos from './pages/GestaoPedidos'
+import GestaoEstoque from './pages/GestaoEstoque'
+import GestaoCompras from './pages/GestaoCompras'
+import Relatorios from './pages/Relatorios'
 import Cadastros from './pages/Cadastros'
 
 function DefaultRedirect() {
@@ -31,12 +37,21 @@ function App() {
                     <Route element={<ProtectedRoute />}>
                       <Route element={<Layout />}>
                         <Route index element={<DefaultRedirect />} />
-                        <Route path="dashboard" element={<Dashboard />} />
                         <Route path="pedidos" element={<Pedidos />} />
+                        <Route path="acompanhar" element={<Acompanhar />} />
+                        <Route path="historico" element={<Historico />} />
+                        <Route path="filial" element={<MinhaFilial />} />
                         <Route element={<ProtectedRoute adminOnly />}>
-                          <Route path="administracao" element={<Administracao />} />
+                          <Route path="dashboard" element={<Dashboard />} />
+                          <Route path="gestao" element={<GestaoPedidos />} />
+                          {/* endereço antigo (links e notificações já enviadas) */}
+                          <Route path="administracao" element={<Navigate to="/gestao" replace />} />
+                          <Route path="estoque" element={<GestaoEstoque />} />
+                          <Route path="compras" element={<GestaoCompras />} />
+                          <Route path="relatorios" element={<Relatorios />} />
                           <Route path="cadastros" element={<Cadastros />} />
                         </Route>
+                        <Route path="*" element={<DefaultRedirect />} />
                       </Route>
                     </Route>
                   </Routes>

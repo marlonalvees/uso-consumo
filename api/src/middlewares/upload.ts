@@ -6,9 +6,11 @@ import multer from 'multer'
 export const UPLOADS_ROOT = path.join(process.cwd(), 'src', 'uploads')
 const PRODUTOS_DIR = path.join(UPLOADS_ROOT, 'produtos')
 const NOTAS_FISCAIS_DIR = path.join(UPLOADS_ROOT, 'notas-fiscais')
+const RECEBIMENTOS_DIR = path.join(UPLOADS_ROOT, 'recebimentos')
 
 fs.mkdirSync(PRODUTOS_DIR, { recursive: true })
 fs.mkdirSync(NOTAS_FISCAIS_DIR, { recursive: true })
+fs.mkdirSync(RECEBIMENTOS_DIR, { recursive: true })
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -40,6 +42,13 @@ function createImageUploader(destination: string, fieldName: string) {
 
 export const uploadProductPhoto = createImageUploader(PRODUTOS_DIR, 'photo')
 export const uploadInvoicePhoto = createImageUploader(NOTAS_FISCAIS_DIR, 'invoice')
+export const uploadReceiptPhoto = createImageUploader(RECEBIMENTOS_DIR, 'photo')
+
+export function uploadErrorMessage(err: unknown): string {
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') return 'Imagem muito grande — máximo 5MB'
+  if (err instanceof Error) return err.message
+  return 'Não foi possível enviar a imagem'
+}
 
 export function deleteUploadedFile(relativePath: string) {
   const fullPath = path.join(UPLOADS_ROOT, relativePath)

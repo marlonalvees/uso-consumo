@@ -15,6 +15,8 @@ import suppliersRoutes from './routes/suppliers.routes';
 import purchasesRoutes from './routes/purchases.routes';
 import stockRoutes from './routes/stock.routes';
 import packagingRoutes from './routes/packaging.routes';
+import reportsRoutes from './routes/reports.routes';
+import pushRoutes from './routes/push.routes';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -47,6 +49,8 @@ app.use('/api/suppliers', suppliersRoutes);
 app.use('/api/purchases', purchasesRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/packaging', packagingRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/push', pushRoutes);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);

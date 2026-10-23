@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError, assetUrl } from '../lib/api'
 import type { Item, Supplier } from '../types'
-import { CameraIcon, EditIcon, PlusIcon, SearchIcon, TrashIcon } from '../components/icons'
+import { CameraIcon, EditIcon, PlusIcon, SearchIcon, SparklesIcon, TrashIcon } from '../components/icons'
+import StockSuggestionsSheet from '../components/StockSuggestionsSheet'
 import { useToast } from '../context/ToastContext'
 import { useCategories } from '../context/CategoriesContext'
 import { usePackaging } from '../context/PackagingContext'
@@ -9,6 +10,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import ProductEditModal from '../components/ProductEditModal'
 import PhotoLightbox from '../components/PhotoLightbox'
 import { normalizeText } from '../lib/text'
+import { isLowStock } from '../lib/stock'
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -115,6 +117,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
   const [statusFilter, setStatusFilter] = useState<'' | 'ativo' | 'inativo'>('')
 
   const [creating, setCreating] = useState(false)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -229,18 +232,28 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         {!hideTitle && <h1 className="text-2xl font-semibold text-gray-900">Produtos</h1>}
-        <button
-          type="button"
-          onClick={() => setCreating(true)}
-          disabled={!canCreate}
-          title={canCreate ? undefined : 'Cadastre ao menos uma categoria e uma embalagem antes de criar produtos'}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-novamix-orange px-4 py-2 text-sm font-semibold text-white transition hover:bg-novamix-orange-dark disabled:opacity-50"
-        >
-          <PlusIcon className="h-4 w-4" />
-          Novo produto
-        </button>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSuggestionsOpen(true)}
+            className="press inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-bold text-gray-800 ring-1 ring-gray-200 transition hover:bg-gray-50"
+          >
+            <SparklesIcon className="h-4 w-4 text-orange-base" />
+            Sugerir mínimo pelo consumo
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            disabled={!canCreate}
+            title={canCreate ? undefined : 'Cadastre ao menos uma categoria e uma embalagem antes de criar produtos'}
+            className="press inline-flex items-center gap-1.5 rounded-xl bg-orange-base px-4 py-2 text-sm font-bold text-white transition hover:bg-orange-light disabled:opacity-50"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Novo produto
+          </button>
+        </div>
       </div>
 
       {!canCreate && (
@@ -310,7 +323,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
           {/* Mobile: stacked cards, no horizontal scroll */}
           <ul className="space-y-3 md:hidden">
             {filteredItems.map((item) => {
-              const lowStock = item.stockQuantity <= item.minStock
+              const lowStock = isLowStock(item)
               return (
                 <li
                   key={item.id}
@@ -342,7 +355,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
 
                   <div className="mt-3 grid grid-cols-2 gap-y-2 border-t border-gray-100 pt-3 text-sm">
                     <div>
-                      <p className="text-xs text-gray-400">Valor</p>
+                      <p className="text-xs text-gray-500">Custo médio</p>
                       <p className="text-gray-900">{formatCurrency(item.price)}</p>
                     </div>
                     <div>
@@ -393,7 +406,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
                   <th className="px-4 py-2 text-left font-medium text-gray-500">Foto</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-500">Nome</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-500">Embalagem</th>
-                  <th className="px-4 py-2 text-left font-medium text-gray-500">Valor</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Custo médio</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-500">Categoria</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-500">Fornecedor</th>
                   <th className="px-4 py-2 text-left font-medium text-gray-500">Estoque</th>
@@ -403,7 +416,7 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredItems.map((item) => {
-                  const lowStock = item.stockQuantity <= item.minStock
+                  const lowStock = isLowStock(item)
                   return (
                     <tr key={item.id} className={item.active ? '' : 'opacity-50'}>
                       <td className="px-4 py-3">
@@ -473,6 +486,17 @@ export default function Produtos({ hideTitle = false }: ProdutosProps = {}) {
         suppliers={suppliers}
         onClose={() => setEditingItem(null)}
         onSaved={handleSaved}
+      />
+
+      <StockSuggestionsSheet
+        open={suggestionsOpen}
+        items={items}
+        onClose={() => setSuggestionsOpen(false)}
+        onApplied={(updated) => {
+          const byId = new Map(updated.map((i) => [i.id, i]))
+          setItems((prev) => prev.map((i) => byId.get(i.id) ?? i))
+          setSuggestionsOpen(false)
+        }}
       />
 
       {creating && (

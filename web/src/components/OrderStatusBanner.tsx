@@ -5,18 +5,18 @@ import { useOrders } from '../context/OrdersContext'
 import type { OrderStatus } from '../types'
 import { ChevronRightIcon, ClipboardIcon, PackageSearchIcon, TruckIcon } from './icons'
 
-type BannerStatus = Exclude<OrderStatus, 'ENTREGUE'>
+type BannerStatus = Extract<OrderStatus, 'RECEBIDO' | 'EM_ANDAMENTO' | 'ENVIADO'>
 
 const BANNER_STATUSES: BannerStatus[] = ['RECEBIDO', 'EM_ANDAMENTO', 'ENVIADO']
 
-// Recebido pisca até a central passar o pedido pra "Em andamento"
+// Recebido pisca até a central passar o pedido pra "Em separação"
 const BANNER_STYLES: Record<BannerStatus, string> = {
   RECEBIDO: 'bg-linear-to-r from-red-base to-red-light text-white shadow-red-base/30 motion-safe:animate-blink',
   EM_ANDAMENTO: 'bg-linear-to-r from-amber-400 to-yellow-300 text-amber-950 shadow-amber-500/30',
   ENVIADO: 'bg-linear-to-r from-blue-700 to-blue-500 text-white shadow-blue-600/30',
 }
 
-// mesmos ícones da linha do tempo do pedido (OrderStatusTimeline)
+// mesmos ícones da linha do tempo do pedido
 const BANNER_ICONS: Record<BannerStatus, ComponentType<{ className?: string }>> = {
   RECEBIDO: ClipboardIcon,
   EM_ANDAMENTO: PackageSearchIcon,
@@ -29,23 +29,24 @@ function plural(count: number, singular: string, pluralForm: string) {
 
 const ADMIN_MESSAGES: Record<BannerStatus, (count: number) => string> = {
   RECEBIDO: (count) => `${plural(count, 'pedido novo', 'pedidos novos')} aguardando a separação`,
-  EM_ANDAMENTO: (count) => `${plural(count, 'pedido', 'pedidos')} em andamento`,
+  EM_ANDAMENTO: (count) => `${plural(count, 'pedido', 'pedidos')} em separação`,
   ENVIADO: (count) =>
     `${plural(count, 'pedido enviado', 'pedidos enviados')} aguardando a confirmação da filial`,
 }
 
 interface Banner {
+  key: string
   status: BannerStatus
   message: ReactNode
   actionLabel: string
   to: string
-  // lido pela página de destino pra abrir a aba certa e destacar o(s) pedido(s) (useNavigationFocus)
+  // lido pela página de destino pra destacar o(s) pedido(s) (useNavigationFocus)
   state: Record<string, unknown>
 }
 
 export default function OrderStatusBanner() {
   const { user } = useAuth()
-  const { orders, myActiveOrder } = useOrders()
+  const { orders, activeOrders } = useOrders()
 
   const banners: Banner[] = []
 
@@ -54,27 +55,33 @@ export default function OrderStatusBanner() {
       const count = orders.filter((o) => o.status === status).length
       if (count === 0) continue
       banners.push({
+        key: status,
         status,
         message: ADMIN_MESSAGES[status](count),
         actionLabel: count === 1 ? 'Ver pedido' : 'Ver pedidos',
-        to: '/administracao',
-        state: { tab: 'pedidos', focusStatus: status },
+        to: '/gestao',
+        state: { focusStatus: status },
       })
     }
-  } else if (myActiveOrder && myActiveOrder.status !== 'ENTREGUE') {
-    const branch = <strong>{myActiveOrder.branch.name}</strong>
-    const messages: Record<BannerStatus, ReactNode> = {
-      RECEBIDO: <>Pedido da filial {branch} recebido, aguardando a central iniciar a separação</>,
-      EM_ANDAMENTO: <>Pedido da filial {branch} em andamento: a central está separando os itens</>,
-      ENVIADO: <>Pedido da filial {branch} enviado. Confirme o recebimento quando chegar</>,
+  } else {
+    // uma barra por pedido em andamento: quem cuida de mais de uma filial vê todas
+    for (const order of activeOrders) {
+      const status = order.status as BannerStatus
+      const branch = <strong>{order.branch.name}</strong>
+      const messages: Record<BannerStatus, ReactNode> = {
+        RECEBIDO: <>Pedido da filial {branch} recebido, aguardando a central iniciar a separação</>,
+        EM_ANDAMENTO: <>Pedido da filial {branch} em separação na central</>,
+        ENVIADO: <>Pedido da filial {branch} a caminho. Confirme o recebimento quando chegar</>,
+      }
+      banners.push({
+        key: order.id,
+        status,
+        message: messages[status],
+        actionLabel: status === 'ENVIADO' ? 'Confirmar' : 'Acompanhar',
+        to: '/acompanhar',
+        state: { focusOrderId: order.id },
+      })
     }
-    banners.push({
-      status: myActiveOrder.status,
-      message: messages[myActiveOrder.status],
-      actionLabel: 'Ver pedido',
-      to: '/pedidos',
-      state: { tab: 'meus', branchId: myActiveOrder.branchId, focusOrderId: myActiveOrder.id },
-    })
   }
 
   if (banners.length === 0) return null
@@ -85,10 +92,10 @@ export default function OrderStatusBanner() {
         const Icon = BANNER_ICONS[banner.status]
         return (
           <Link
-            key={banner.status}
+            key={banner.key}
             to={banner.to}
             state={banner.state}
-            className={`group relative block overflow-hidden rounded-xl px-3 py-2 text-sm font-medium shadow-md ring-1 ring-black/5 ring-inset transition hover:shadow-lg hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-novamix-teal ${BANNER_STYLES[banner.status]}`}
+            className={`group relative block overflow-hidden rounded-2xl px-3 py-2 text-sm font-semibold shadow-md ring-1 ring-black/5 ring-inset transition hover:shadow-lg hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-novamix-teal ${BANNER_STYLES[banner.status]}`}
           >
             {/* brilho que atravessa a barra a cada 15s; o atraso escalona as barras uma depois da outra */}
             <span
@@ -101,7 +108,7 @@ export default function OrderStatusBanner() {
                 <Icon className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">{banner.message}</span>
-              <span className="inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-white/20 p-1 font-semibold transition-colors group-hover:bg-white/30 sm:pr-2 sm:pl-3">
+              <span className="inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-white/20 p-1 font-bold transition-colors group-hover:bg-white/30 sm:pr-2 sm:pl-3">
                 <span className="hidden sm:inline">{banner.actionLabel}</span>
                 <ChevronRightIcon className="h-4 w-4" />
               </span>

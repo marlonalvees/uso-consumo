@@ -1,15 +1,15 @@
 # Uso e Consumo
 
 Sistema interno para as filiais pedirem itens de uso e consumo (papel A4,
-cloro, espanador etc. — lista fictícia por enquanto). Cada filial tem um
-login próprio de supervisor e faz pedidos pelo celular; a central acompanha
-tudo em uma dashboard, com o estágio de cada pedido evoluindo de
-**Recebido** até **Entregue** (confirmado pelo próprio supervisor).
+cloro, espanador etc.). Cada filial tem um login próprio de supervisor e faz
+pedidos pelo celular, numa tela no estilo de app de delivery; a central
+acompanha tudo num quadro de pedidos, com o estágio de cada pedido evoluindo
+de **Recebido** até **Entregue** (confirmado pelo próprio supervisor). Dá pra
+instalar o site na tela inicial do celular e receber notificações.
 
-A central também controla estoque: cada produto tem fornecedor e estoque
-mínimo cadastrados, compras dão entrada no estoque, pedidos enviados dão
-saída, e há um relatório de recomendação de compra baseado no estoque
-mínimo de cada item.
+A central também controla estoque e compras: inventário por contagem,
+pedidos de compra que só entram no estoque quando chegam, custo médio
+automático, sugestão de estoque mínimo pelo consumo e relatórios.
 
 ## Estrutura
 
@@ -37,6 +37,10 @@ npm run dev            # http://localhost:3001
   sejam gerados com ele (veja [Login](#login)).
 - `CORS_ORIGINS`: endereços do front liberados, separados por vírgula e sem
   espaço. Se ficar vazio, valem o hub e o `http://localhost:5173`.
+- `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT` (opcionais): chaves
+  das notificações push. Gere uma vez com `npx web-push generate-vapid-keys` e
+  não troque depois (os aparelhos inscritos param de receber). Sem elas o
+  sistema funciona normalmente, só sem push.
 
 O banco já existe no Supabase. Pra aplicar uma migration nova, use
 `npx prisma migrate deploy`. **Não rode `prisma migrate dev` nem
@@ -89,21 +93,78 @@ filiais precisam existir nas tabelas `users` e `branchs` do hub.
 
 ## Estágios do pedido
 
-`Recebido` → `Em andamento` → `Enviado` → `Entregue`
+`Recebido` → `Em separação` → `Enviado` → `Entregue` (ou `Cancelado`)
 
-Os três primeiros são avançados pelo admin, na Administração ("Gestão de
-pedidos"). O admin pode ajustar os itens/quantidades (adicionar, remover,
-alterar) pra refletir o que realmente será enviado — nem sempre o que a
-filial pediu é o que a central tem em estoque. Ao marcar como `Enviado`, o
-estoque dos itens é baixado. O envio não confere o saldo de propósito: nem
-sempre o estoque está atualizado, então ele pode ficar negativo.
-Depois de enviado, o admin ainda pode ajustar os itens, e a diferença volta
-ou sai do estoque automaticamente. O último estágio (`Entregue`) só é setado
-quando o supervisor da filial confirma o recebimento na tela "Meus pedidos".
+No banco, "Em separação" continua com o valor `EM_ANDAMENTO`.
 
-Cada supervisor só pode ter um pedido em aberto por vez: pra fazer outro, o
-anterior precisa chegar a `Entregue`. Enquanto o pedido está em `Recebido`,
-quem fez ainda pode editá-lo. O admin não tem a trava de um pedido por vez.
+- **Recebido → Em separação → Enviado**: a central avança no quadro da
+  Gestão de pedidos. Iniciar a separação pode ser desfeito (volta pra
+  Recebido). Ao marcar como `Enviado`, o estoque dos itens é baixado e o custo
+  de cada item fica guardado no pedido (o consumo dos meses passados não muda
+  quando o custo do produto muda depois).
+- **Ajustes da central**: o admin pode mudar itens e quantidades em qualquer
+  estágio, com o motivo de cada corte ("Sem estoque" etc.) e uma observação
+  pra filial. A filial vê o que pediu, o que vai e por quê. Depois do envio, a
+  diferença volta ou sai do estoque automaticamente.
+- **Estoque negativo**: nenhuma operação confere saldo (envio, ajuste de
+  pedido, ajuste avulso). O estoque nem sempre está atualizado, então ele pode
+  ficar negativo; o inventário por contagem corrige.
+- **Entregue**: só quando o supervisor confirma o recebimento, item a item.
+  Dá pra marcar o que faltou ou chegou avariado (com foto e observação); a
+  central é avisada e vê tudo no relatório de divergências.
+- **Cancelado**: o supervisor cancela enquanto o pedido está em Recebido; a
+  central cancela com motivo até antes do envio.
+
+Cada **filial** só pode ter um pedido aberto (Recebido ou Em separação) por
+vez. Enquanto ele está em Recebido, qualquer supervisor da filial adiciona
+itens a ele em vez de abrir outro; depois que a central envia, a filial já
+pode fazer o próximo pedido. O admin não tem essa trava.
+
+**Pendências**: o que a central cortou de um pedido enviado e o que faltou ou
+chegou avariado no recebimento aparece pra filial como pendência no próximo
+pedido (dá pra pedir de novo com um toque ou dispensar).
+
+Todas as mudanças ficam no histórico do pedido (quem fez e quando).
+
+## Estoque e compras
+
+- **Inventário**: a central digita o que contou e o sistema lança a diferença.
+  A contagem pode ser cega (sem mostrar o saldo do sistema); diferença grande
+  pede justificativa. A curva ABC (pelo valor consumido) diz o que contar com
+  mais frequência.
+- **Pedido de compra**: a recomendação gera o pedido ao fornecedor (e a
+  mensagem de WhatsApp). Ele fica "a caminho" e só entra no estoque quando é
+  recebido, conferindo quantidade e custo de cada item. O que está a caminho
+  não aparece de novo na recomendação.
+- **Custo médio**: o custo do produto é recalculado a cada compra recebida com
+  custo unitário (custo médio ponderado).
+- **Mínimo e ideal pelo consumo**: Produtos → "Sugerir mínimo pelo consumo"
+  calcula pelo consumo dos últimos 90 dias e pelo prazo de entrega do
+  fornecedor (mínimo = consumo no prazo + estoque de segurança).
+
+## Filiais
+
+Em Cadastros → Filiais a central define, por filial:
+
+- **Estoque ideal** de cada item: a filial informa quanto tem e o pedido é
+  calculado sozinho ("Pedir pelo estoque ideal").
+- **Cota mensal**: só informativa (a filial vê quanto já consumiu no mês e
+  quanto o pedido vai somar; nada é bloqueado).
+
+## App no celular e notificações
+
+O site é instalável (PWA): no Android, "Adicionar à tela inicial"/"Instalar";
+no iPhone, Compartilhar → "Adicionar à Tela de Início". Com as chaves VAPID
+configuradas, cada pessoa ativa as notificações no próprio aparelho (menu
+lateral, "Mais" ou "Minha filial"):
+
+- a central recebe "pedido novo" (e, com o site aberto, toca um som e mostra
+  o contador no título da aba);
+- a filial recebe quando o pedido entra em separação, é enviado, ajustado ou
+  cancelado.
+
+No iPhone, o push só funciona com o app adicionado à tela inicial (iOS 16.4
+ou mais novo).
 
 ## Fluxo de trabalho
 

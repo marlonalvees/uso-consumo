@@ -23,6 +23,7 @@ enum OrderStatus {
   EM_ANDAMENTO
   ENVIADO
   ENTREGUE
+  CANCELADO
 
   @@map("order_status")
   @@schema("uso_consumo")
@@ -36,11 +37,44 @@ enum StockMovementType {
   @@schema("uso_consumo")
 }
 
+/// Problema apontado pela filial ao confirmar o recebimento de um item.
+enum ReceiptIssue {
+  FALTOU
+  AVARIADO
+
+  @@map("receipt_issue")
+  @@schema("uso_consumo")
+}
+
+enum OrderEventType {
+  CRIADO
+  EDITADO
+  STATUS
+  ITENS_AJUSTADOS
+  CANCELADO
+  RECEBIDO
+
+  @@map("order_event_type")
+  @@schema("uso_consumo")
+}
+
+/// PEDIDO = pedido de compra feito ao fornecedor, ainda sem entrada no estoque.
+enum PurchaseStatus {
+  PEDIDO
+  RECEBIDO
+  CANCELADO
+
+  @@map("purchase_status")
+  @@schema("uso_consumo")
+}
+
 /// Tabela do hub central (schema public) — somente leitura, nunca criar/alterar/apagar por aqui.
 model Branch {
-  id     Int     @id
+  id     Int            @id
   name   String
   orders Order[]
+  pars   BranchItemPar[]
+  budget BranchBudget?
 
   @@map("branchs")
   @@schema("public")
@@ -48,9 +82,14 @@ model Branch {
 
 /// Tabela do hub central (schema public) — somente leitura, nunca criar/alterar/apagar por aqui.
 model User {
-  id     Int     @id
-  name   String
-  orders Order[]
+  id                Int             @id
+  name              String
+  orders            Order[]         @relation("OrderRequestedBy")
+  cancelledOrders   Order[]         @relation("OrderCancelledBy")
+  orderEvents       OrderEvent[]
+  stockMovements    StockMovement[]
+  purchasesCreated  Purchase[]      @relation("PurchaseCreatedBy")
+  purchasesReceived Purchase[]      @relation("PurchaseReceivedBy")
 
   @@map("users")
   @@schema("public")
@@ -75,14 +114,16 @@ model Packaging {
 }
 
 model Supplier {
-  id        String     @id @default(cuid())
-  name      String     @unique
-  cnpj      String?    @unique
-  phone     String?
-  email     String?
-  active    Boolean    @default(true)
-  items     Item[]
-  purchases Purchase[]
+  id           String     @id @default(cuid())
+  name         String     @unique
+  cnpj         String?    @unique
+  phone        String?
+  email        String?
+  active       Boolean    @default(true)
+  /// Prazo médio de entrega, usado pra sugerir estoque mínimo pelo consumo.
+  leadTimeDays Int?       @map("lead_time_days")
+  items        Item[]
+  purchases    Purchase[]
 
   @@map("supplier")
   @@schema("uso_consumo")
@@ -94,6 +135,7 @@ model Item {
   photoPath      String?         @map("photo_path")
   packaging      Packaging       @relation(fields: [packagingId], references: [id])
   packagingId    String          @map("packaging_id")
+  /// Custo médio ponderado: atualizado a cada compra recebida com custo unitário.
   price          Float           @default(0)
   category       ItemCategory    @relation(fields: [categoryId], references: [id])
   categoryId     String          @map("category_id")
@@ -103,54 +145,100 @@ model Item {
   stockQuantity  Int             @default(0) @map("stock_quantity")
   minStock       Int             @default(0) @map("min_stock")
   targetStock    Int?            @map("target_stock")
+  lastCountedAt  DateTime?       @map("last_counted_at")
   orderItems     OrderItem[]
   purchaseItems  PurchaseItem[]
   stockMovements StockMovement[]
+  branchPars     BranchItemPar[]
 
   @@map("item")
   @@schema("uso_consumo")
 }
 
 model Order {
-  id             String           @id @default(cuid())
-  branch         Branch           @relation(fields: [branchId], references: [id])
-  branchId       Int              @map("branch_id")
-  requestedBy    User             @relation(fields: [requestedById], references: [id])
-  requestedById  Int              @map("user_hub_id")
-  status         OrderStatus      @default(RECEBIDO)
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
-  deliveredAt    DateTime?        @map("delivered_at")
-  items          OrderItem[]
-  extraItems     OrderExtraItem[]
-  stockMovements StockMovement[]
+  id               String           @id @default(cuid())
+  branch           Branch           @relation(fields: [branchId], references: [id])
+  branchId         Int              @map("branch_id")
+  requestedBy      User             @relation("OrderRequestedBy", fields: [requestedById], references: [id])
+  requestedById    Int              @map("user_hub_id")
+  status           OrderStatus      @default(RECEBIDO)
+  /// Observação da filial ao fazer o pedido.
+  notes            String?
+  /// Observação da central (ex.: por que algo foi cortado).
+  adminNotes       String?          @map("admin_notes")
+  statusChangedAt  DateTime         @default(now()) @map("status_changed_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  sentAt           DateTime?        @map("sent_at")
+  deliveredAt      DateTime?        @map("delivered_at")
+  cancelledAt      DateTime?        @map("cancelled_at")
+  cancelReason     String?          @map("cancel_reason")
+  cancelledBy      User?            @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledById    Int?             @map("cancelled_by_id")
+  receiptNotes     String?          @map("receipt_notes")
+  receiptPhotoPath String?          @map("receipt_photo_path")
+  items            OrderItem[]
+  extraItems       OrderExtraItem[]
+  stockMovements   StockMovement[]
+  events           OrderEvent[]
 
+  @@index([branchId, status])
+  @@index([updatedAt])
   @@map("order")
   @@schema("uso_consumo")
 }
 
 model OrderItem {
-  id                String @id @default(cuid())
-  order             Order  @relation(fields: [orderId], references: [id])
-  orderId           String @map("order_id")
-  item              Item   @relation(fields: [itemId], references: [id])
-  itemId            String @map("item_id")
-  requestedQuantity Int    @map("requested_quantity")
+  id                String        @id @default(cuid())
+  order             Order         @relation(fields: [orderId], references: [id])
+  orderId           String        @map("order_id")
+  item              Item          @relation(fields: [itemId], references: [id])
+  itemId            String        @map("item_id")
+  requestedQuantity Int           @map("requested_quantity")
   quantity          Int
+  /// Custo unitário no momento do envio (o preço do produto muda com o tempo).
+  unitCost          Float?        @map("unit_cost")
+  /// Por que a central mudou a quantidade pedida.
+  adjustReason      String?       @map("adjust_reason")
+  receivedQuantity  Int?          @map("received_quantity")
+  receiptIssue      ReceiptIssue? @map("receipt_issue")
+  /// Pendência (corte ou falta) já reaproveitada num pedido novo ou dispensada pela filial.
+  pendingResolvedAt DateTime?     @map("pending_resolved_at")
 
   @@map("order_item")
   @@schema("uso_consumo")
 }
 
 model OrderExtraItem {
-  id                String @id @default(cuid())
-  order             Order  @relation(fields: [orderId], references: [id])
-  orderId           String @map("order_id")
+  id                String        @id @default(cuid())
+  order             Order         @relation(fields: [orderId], references: [id])
+  orderId           String        @map("order_id")
   name              String
-  requestedQuantity Int    @map("requested_quantity")
+  requestedQuantity Int           @map("requested_quantity")
   quantity          Int
+  adjustReason      String?       @map("adjust_reason")
+  receivedQuantity  Int?          @map("received_quantity")
+  receiptIssue      ReceiptIssue? @map("receipt_issue")
 
   @@map("order_extra_item")
+  @@schema("uso_consumo")
+}
+
+/// Histórico do pedido: quem fez o quê e quando.
+model OrderEvent {
+  id         String         @id @default(cuid())
+  order      Order          @relation(fields: [orderId], references: [id])
+  orderId    String         @map("order_id")
+  type       OrderEventType
+  fromStatus OrderStatus?   @map("from_status")
+  toStatus   OrderStatus?   @map("to_status")
+  user       User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId     Int?           @map("user_id")
+  note       String?
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  @@index([orderId, createdAt])
+  @@map("order_event")
   @@schema("uso_consumo")
 }
 
@@ -158,24 +246,34 @@ model Purchase {
   id             String          @id @default(cuid())
   supplier       Supplier        @relation(fields: [supplierId], references: [id])
   supplierId     String          @map("supplier_id")
+  status         PurchaseStatus  @default(RECEBIDO)
   notes          String?
   invoicePath    String?         @map("invoice_path")
   createdAt      DateTime        @default(now()) @map("created_at")
+  receivedAt     DateTime?       @map("received_at")
+  createdBy      User?           @relation("PurchaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById    Int?            @map("created_by_id")
+  receivedBy     User?           @relation("PurchaseReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  receivedById   Int?            @map("received_by_id")
   items          PurchaseItem[]
   stockMovements StockMovement[]
 
+  @@index([status, createdAt])
   @@map("purchase")
   @@schema("uso_consumo")
 }
 
 model PurchaseItem {
-  id         String   @id @default(cuid())
-  purchase   Purchase @relation(fields: [purchaseId], references: [id])
-  purchaseId String   @map("purchase_id")
-  item       Item     @relation(fields: [itemId], references: [id])
-  itemId     String   @map("item_id")
-  quantity   Int
-  unitCost   Float?   @map("unit_cost")
+  id               String   @id @default(cuid())
+  purchase         Purchase @relation(fields: [purchaseId], references: [id])
+  purchaseId       String   @map("purchase_id")
+  item             Item     @relation(fields: [itemId], references: [id])
+  itemId           String   @map("item_id")
+  /// Quantidade pedida ao fornecedor.
+  quantity         Int
+  /// Quantidade que de fato entrou no estoque (null enquanto o pedido de compra não chega).
+  receivedQuantity Int?     @map("received_quantity")
+  unitCost         Float?   @map("unit_cost")
 
   @@map("purchase_item")
   @@schema("uso_consumo")
@@ -183,18 +281,61 @@ model PurchaseItem {
 
 /// Registro de entrada/saída de estoque — entrada vem de Purchase, saída vem de Order (ao marcar Enviado).
 model StockMovement {
-  id         String            @id @default(cuid())
-  item       Item              @relation(fields: [itemId], references: [id])
-  itemId     String            @map("item_id")
-  type       StockMovementType
-  quantity   Int
-  reason     String
-  purchase   Purchase?         @relation(fields: [purchaseId], references: [id])
-  purchaseId String?           @map("purchase_id")
-  order      Order?            @relation(fields: [orderId], references: [id])
-  orderId    String?           @map("order_id")
-  createdAt  DateTime          @default(now()) @map("created_at")
+  id          String            @id @default(cuid())
+  item        Item              @relation(fields: [itemId], references: [id])
+  itemId      String            @map("item_id")
+  type        StockMovementType
+  quantity    Int
+  reason      String
+  purchase    Purchase?         @relation(fields: [purchaseId], references: [id])
+  purchaseId  String?           @map("purchase_id")
+  order       Order?            @relation(fields: [orderId], references: [id])
+  orderId     String?           @map("order_id")
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdById Int?              @map("created_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
 
+  @@index([itemId, createdAt])
+  @@index([createdAt])
   @@map("stock_movement")
+  @@schema("uso_consumo")
+}
+
+/// Estoque ideal de cada produto numa filial: a filial informa quanto tem e o pedido sugere a diferença.
+model BranchItemPar {
+  id       String @id @default(cuid())
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branchId Int    @map("branch_id")
+  item     Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId   String @map("item_id")
+  quantity Int
+
+  @@unique([branchId, itemId])
+  @@map("branch_item_par")
+  @@schema("uso_consumo")
+}
+
+/// Cota mensal de consumo da filial (informativa: avisa, não bloqueia).
+model BranchBudget {
+  branch        Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branchId      Int    @id @map("branch_id")
+  monthlyAmount Float  @map("monthly_amount")
+
+  @@map("branch_budget")
+  @@schema("uso_consumo")
+}
+
+/// Aparelho inscrito pra receber notificações push (PWA).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    Int      @map("user_id")
+  isAdmin   Boolean  @default(false) @map("is_admin")
+  branchIds Int[]    @map("branch_ids")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("push_subscription")
   @@schema("uso_consumo")
 }

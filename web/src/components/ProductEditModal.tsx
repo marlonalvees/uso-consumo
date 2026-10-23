@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { useToast } from '../context/ToastContext'
 import type { Category, Item, Packaging, Supplier } from '../types'
-import { CloseIcon } from './icons'
+import { btnPrimary, btnSecondary, inputClass, labelClass, selectClass } from '../lib/ui'
+import Sheet from './ui/Sheet'
+import { CheckIcon, PlusIcon } from './icons'
 
 interface ProductEditModalProps {
   item: Item | null
@@ -21,32 +23,71 @@ interface FormState {
   categoryId: string
   supplierId: string
   minStock: string
+  targetStock: string
 }
 
 function emptyForm(defaultCategoryId: string, defaultPackagingId: string): FormState {
-  return {
-    name: '',
-    packagingId: defaultPackagingId,
-    price: '',
-    categoryId: defaultCategoryId,
-    supplierId: '',
-    minStock: '0',
-  }
+  return { name: '', packagingId: defaultPackagingId, price: '', categoryId: defaultCategoryId, supplierId: '', minStock: '0', targetStock: '' }
 }
 
-export default function ProductEditModal({
-  item,
-  mode = 'edit',
-  categories,
-  packagingList,
-  suppliers,
-  onClose,
-  onSaved,
-}: ProductEditModalProps) {
+/** Cria categoria ou embalagem sem sair do cadastro do produto (são listas só com nome). */
+function InlineCreate({ label, endpoint, onCreated }: { label: string; endpoint: string; onCreated: (created: { id: string; name: string }) => void }) {
+  const toast = useToast()
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function create() {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      const created = await api.post<{ id: string; name: string }>(endpoint, { name: name.trim() })
+      onCreated(created)
+      setName('')
+      setOpen(false)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : `Não foi possível criar ${label.toLowerCase()}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-orange-base">
+        <PlusIcon className="h-3.5 w-3.5" /> Nova {label.toLowerCase()}
+      </button>
+    )
+  }
+  return (
+    <div className="mt-1.5 flex gap-1.5">
+      <input
+        type="text"
+        value={name}
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), create())}
+        placeholder={`Nome da ${label.toLowerCase()}`}
+        aria-label={`Nome da nova ${label.toLowerCase()}`}
+        className="min-w-0 flex-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm"
+      />
+      <button type="button" onClick={create} disabled={saving} aria-label="Criar" className="press rounded-lg bg-gray-900 px-2.5 text-white">
+        <CheckIcon className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
+export default function ProductEditModal({ item, mode = 'edit', categories, packagingList, suppliers, onClose, onSaved }: ProductEditModalProps) {
   const toast = useToast()
   const isCreate = mode === 'create'
   const [form, setForm] = useState<FormState | null>(null)
   const [saving, setSaving] = useState(false)
+  const [categoryOptions, setCategoryOptions] = useState(categories)
+  const [packagingOptions, setPackagingOptions] = useState(packagingList)
+
+  useEffect(() => setCategoryOptions(categories), [categories])
+  useEffect(() => setPackagingOptions(packagingList), [packagingList])
 
   useEffect(() => {
     if (isCreate) {
@@ -64,33 +105,35 @@ export default function ProductEditModal({
       categoryId: item.categoryId,
       supplierId: item.supplierId ?? '',
       minStock: String(item.minStock),
+      targetStock: item.targetStock !== null ? String(item.targetStock) : '',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, isCreate])
 
   if ((!isCreate && !item) || !form) return null
 
+  function set(change: Partial<FormState>) {
+    setForm((prev) => (prev ? { ...prev, ...change } : prev))
+  }
+
   async function handleSave() {
     if (!form!.name.trim()) {
       toast.error('Preencha o nome')
       return
     }
-    if (!form!.packagingId) {
-      toast.error('Selecione uma embalagem')
+    if (!form!.packagingId || !form!.categoryId) {
+      toast.error('Selecione a embalagem e a categoria')
       return
     }
-    if (!form!.categoryId) {
-      toast.error('Selecione uma categoria')
-      return
-    }
-    const price = form!.price.trim() === '' ? 0 : Number(form!.price)
+    const price = form!.price.trim() === '' ? 0 : Number(form!.price.replace(',', '.'))
     if (!Number.isFinite(price) || price < 0) {
       toast.error('Informe um valor válido')
       return
     }
     const minStock = form!.minStock.trim() === '' ? 0 : Number(form!.minStock)
-    if (!Number.isInteger(minStock) || minStock < 0) {
-      toast.error('Estoque mínimo deve ser um número inteiro maior ou igual a 0')
+    const targetStock = form!.targetStock.trim() === '' ? null : Number(form!.targetStock)
+    if (!Number.isInteger(minStock) || minStock < 0 || (targetStock !== null && (!Number.isInteger(targetStock) || targetStock < 0))) {
+      toast.error('Estoque mínimo e ideal devem ser números inteiros')
       return
     }
 
@@ -103,10 +146,9 @@ export default function ProductEditModal({
         supplierId: form!.supplierId || null,
         price,
         minStock,
+        targetStock,
       }
-      const saved = isCreate
-        ? await api.post<Item>('/items', payload)
-        : await api.patch<Item>(`/items/${item!.id}`, payload)
+      const saved = isCreate ? await api.post<Item>('/items', payload) : await api.patch<Item>(`/items/${item!.id}`, payload)
       toast.success(isCreate ? `Produto "${saved.name}" adicionado` : `Produto "${saved.name}" atualizado`)
       onSaved(saved)
     } catch (err) {
@@ -117,145 +159,128 @@ export default function ProductEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden">
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl"
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 p-4">
-          <h2 className="text-base font-semibold text-gray-900">
-            {isCreate ? 'Novo produto' : 'Editar produto'}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            aria-label="Fechar"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 text-white transition hover:bg-gray-500 disabled:opacity-60"
-          >
-            <CloseIcon className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Nome</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setForm((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Embalagem</label>
-              <select
-                value={form.packagingId}
-                onChange={(e) =>
-                  setForm((prev) => (prev ? { ...prev, packagingId: e.target.value } : prev))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              >
-                {packagingList.map((packaging) => (
-                  <option key={packaging.id} value={packaging.id}>
-                    {packaging.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Valor</label>
-              <div className="relative">
-                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-400">
-                  R$
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.price}
-                  onChange={(e) =>
-                    setForm((prev) => (prev ? { ...prev, price: e.target.value } : prev))
-                  }
-                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Categoria</label>
-              <select
-                value={form.categoryId}
-                onChange={(e) =>
-                  setForm((prev) => (prev ? { ...prev, categoryId: e.target.value } : prev))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              >
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Fornecedor</label>
-              <select
-                value={form.supplierId}
-                onChange={(e) =>
-                  setForm((prev) => (prev ? { ...prev, supplierId: e.target.value } : prev))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              >
-                <option value="">Sem fornecedor</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="w-1/2 pr-1.5">
-            <label className="mb-1 block text-xs font-medium text-gray-500">Estoque mínimo</label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={form.minStock}
-              onChange={(e) =>
-                setForm((prev) => (prev ? { ...prev, minStock: e.target.value } : prev))
-              }
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-gray-200 p-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="flex h-9 items-center justify-center rounded-lg bg-gray-400 px-4 text-sm font-semibold text-white transition hover:bg-gray-500 disabled:opacity-60"
-          >
+    <Sheet
+      open
+      onClose={onClose}
+      dismissible={false}
+      title={isCreate ? 'Novo produto' : 'Editar produto'}
+      footer={
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose} disabled={saving} className={`${btnSecondary} flex-1`}>
             Cancelar
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="flex h-9 items-center justify-center rounded-lg bg-novamix-teal px-4 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
-          >
+          <button type="button" onClick={handleSave} disabled={saving} className={`${btnPrimary} flex-1`}>
             {saving ? 'Salvando...' : isCreate ? 'Adicionar' : 'Salvar'}
           </button>
         </div>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="product-name" className={labelClass}>
+            Nome
+          </label>
+          <input id="product-name" type="text" value={form.name} onChange={(e) => set({ name: e.target.value })} className={inputClass} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="product-packaging" className={labelClass}>
+              Embalagem
+            </label>
+            <select id="product-packaging" value={form.packagingId} onChange={(e) => set({ packagingId: e.target.value })} className={`${selectClass} w-full`}>
+              {packagingOptions.map((packaging) => (
+                <option key={packaging.id} value={packaging.id}>
+                  {packaging.name}
+                </option>
+              ))}
+            </select>
+            <InlineCreate
+              label="Embalagem"
+              endpoint="/packaging"
+              onCreated={(created) => {
+                setPackagingOptions((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+                set({ packagingId: created.id })
+              }}
+            />
+          </div>
+          <div>
+            <label htmlFor="product-category" className={labelClass}>
+              Categoria
+            </label>
+            <select id="product-category" value={form.categoryId} onChange={(e) => set({ categoryId: e.target.value })} className={`${selectClass} w-full`}>
+              {categoryOptions.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <InlineCreate
+              label="Categoria"
+              endpoint="/categories"
+              onCreated={(created) => {
+                setCategoryOptions((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+                set({ categoryId: created.id })
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="product-price" className={labelClass}>
+              Custo médio (R$)
+            </label>
+            <input
+              id="product-price"
+              type="text"
+              inputMode="decimal"
+              value={form.price}
+              onChange={(e) => set({ price: e.target.value })}
+              className={inputClass}
+              placeholder="0,00"
+            />
+          </div>
+          <div>
+            <label htmlFor="product-supplier" className={labelClass}>
+              Fornecedor
+            </label>
+            <select id="product-supplier" value={form.supplierId} onChange={(e) => set({ supplierId: e.target.value })} className={`${selectClass} w-full`}>
+              <option value="">Sem fornecedor</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <p className="-mt-2 text-xs text-gray-500">O custo médio se atualiza sozinho a cada compra recebida com custo. Aqui é só o valor inicial.</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="product-min" className={labelClass}>
+              Estoque mínimo
+            </label>
+            <input id="product-min" type="number" min={0} step={1} value={form.minStock} onChange={(e) => set({ minStock: e.target.value })} className={inputClass} />
+          </div>
+          <div>
+            <label htmlFor="product-target" className={labelClass}>
+              Estoque ideal
+            </label>
+            <input
+              id="product-target"
+              type="number"
+              min={0}
+              step={1}
+              value={form.targetStock}
+              onChange={(e) => set({ targetStock: e.target.value })}
+              placeholder="2× o mínimo"
+              className={inputClass}
+            />
+          </div>
+        </div>
       </div>
-    </div>
+    </Sheet>
   )
 }

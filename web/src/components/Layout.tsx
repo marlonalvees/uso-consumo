@@ -1,40 +1,73 @@
 import { useEffect, useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import BottomNav from './BottomNav'
+import MobileTopBar from './MobileTopBar'
 import ConfirmDialog from './ConfirmDialog'
 import OrderStatusBanner from './OrderStatusBanner'
+import NewOrderAlerts from './NewOrderAlerts'
+import { useAuth } from '../context/AuthContext'
 import { useOrders } from '../context/OrdersContext'
 
-export default function Layout() {
+/** Filial: lembra uma vez por visita de confirmar o recebimento de um pedido já enviado. */
+function ReceiptReminder() {
   const navigate = useNavigate()
-  const { myActiveOrder, loadingOrders } = useOrders()
-  const [alertOpen, setAlertOpen] = useState(false)
-  const [alertShown, setAlertShown] = useState(false)
+  const location = useLocation()
+  const { activeOrders, loadingOrders } = useOrders()
+  const [open, setOpen] = useState(false)
+  const [shown, setShown] = useState(false)
 
-  const awaitingConfirmation = myActiveOrder?.status === 'ENVIADO'
+  const awaiting = activeOrders.find((o) => o.status === 'ENVIADO')
+  // no Acompanhar o botão de confirmar já está na tela
+  const onTrackingPage = location.pathname === '/acompanhar'
 
   useEffect(() => {
-    if (!loadingOrders && awaitingConfirmation && !alertShown) {
-      setAlertOpen(true)
-      setAlertShown(true)
+    if (!loadingOrders && awaiting && !shown && !onTrackingPage) {
+      setOpen(true)
+      setShown(true)
     }
-  }, [loadingOrders, awaitingConfirmation, alertShown])
+  }, [loadingOrders, awaiting, shown, onTrackingPage])
 
   return (
-    <div className="flex w-full min-h-screen bg-gray">
+    <ConfirmDialog
+      open={open}
+      title="Seu pedido chegou?"
+      message={
+        <>
+          O pedido da filial <strong>{awaiting?.branch.name}</strong> já saiu da central. Quando chegar, confirme o
+          recebimento e conte se faltou ou veio avariado algum item.
+        </>
+      }
+      confirmLabel="Confirmar recebimento"
+      cancelLabel="Agora não"
+      onConfirm={() => {
+        setOpen(false)
+        navigate('/acompanhar', { state: { focusOrderId: awaiting?.id, openReceipt: true } })
+      }}
+      onCancel={() => setOpen(false)}
+    />
+  )
+}
+
+export default function Layout() {
+  const { user } = useAuth()
+
+  return (
+    <div className="min-h-dvh bg-gray">
       <Sidebar />
-      <main className="flex flex-1 min-w-0 flex-col lg:ml-64">
-        <div className="mx-auto w-full max-w-5xl flex-1 px-4 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:pt-6 lg:pb-6 print:max-w-none print:p-0">
+      <MobileTopBar />
+      <main className="lg:ml-64">
+        <div className="mx-auto w-full max-w-6xl px-4 pt-4 pb-6 lg:px-8 lg:pt-8 print:max-w-none print:p-0">
           <OrderStatusBanner />
           <Outlet />
         </div>
-        <footer className="border-t border-gray-200 px-4 py-4 text-center text-xs text-gray-500 print:hidden">
+        <footer className="px-4 pt-2 pb-[calc(6.5rem+env(safe-area-inset-bottom))] text-center text-xs text-gray-500 print:hidden lg:pb-6">
           Desenvolvido por{' '}
           <a
             href="https://www.marlonalves.dev/"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-gray-600 transition hover:text-novamix-teal"
+            className="font-semibold text-gray-600 transition hover:text-orange-base"
           >
             Marlon Alves
           </a>{' '}
@@ -43,31 +76,14 @@ export default function Layout() {
             href="https://www.mthcode.com.br/"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-gray-600 transition hover:text-novamix-teal"
+            className="font-semibold text-gray-600 transition hover:text-orange-base"
           >
             MTHCODE
           </a>
         </footer>
       </main>
-
-      <ConfirmDialog
-        open={alertOpen}
-        title="Pedido aguardando confirmação"
-        message={
-          <>
-            O pedido da filial <strong>{myActiveOrder?.branch.name}</strong> já foi enviado e está
-            aguardando a confirmação de recebimento. Confirme o recebimento antes de fazer um novo
-            pedido.
-          </>
-        }
-        confirmLabel="Ver meus pedidos"
-        cancelLabel="Fechar"
-        onConfirm={() => {
-          setAlertOpen(false)
-          navigate('/pedidos', { state: { tab: 'meus' } })
-        }}
-        onCancel={() => setAlertOpen(false)}
-      />
+      <BottomNav />
+      {user?.isAdmin ? <NewOrderAlerts /> : <ReceiptReminder />}
     </div>
   )
 }

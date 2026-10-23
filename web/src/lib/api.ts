@@ -3,9 +3,12 @@ const HUB_URL = import.meta.env.VITE_HUB_URL
 
 export class ApiError extends Error {
   status: number
-  constructor(message: string, status: number) {
+  /** corpo da resposta de erro (ex.: o 409 de pedido aberto traz openOrderId) */
+  data: Record<string, unknown> | null
+  constructor(message: string, status: number, data: Record<string, unknown> | null = null) {
     super(message)
     this.status = status
+    this.data = data
   }
 }
 
@@ -21,7 +24,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => null)
 
   if (!res.ok) {
-    throw new ApiError(data?.error ?? 'Erro inesperado', res.status)
+    throw new ApiError(data?.error ?? 'Erro inesperado', res.status, data)
   }
 
   return data as T
@@ -46,6 +49,8 @@ export const api = {
     request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  put: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   upload: <T>(path: string, formData: FormData) => upload<T>(path, formData),
 }

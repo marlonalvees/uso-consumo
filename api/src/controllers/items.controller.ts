@@ -3,6 +3,7 @@ import multer from 'multer'
 import { prisma } from '../lib/prisma'
 import { Prisma } from '../generated/prisma/client'
 import { uploadProductPhoto, deleteUploadedFile } from '../middlewares/upload'
+import { CONSUMPTION_WINDOW_DAYS, DEFAULT_LEAD_TIME_DAYS, dailyConsumptionByItem, round } from '../lib/stock'
 
 const ITEM_INCLUDE = {
   category: true,
@@ -244,4 +245,97 @@ export async function deleteItem(req: Request, res: Response) {
     }
     throw err
   }
+}
+
+type AbcClass = 'A' | 'B' | 'C'
+
+/**
+ * Sugestão de estoque mínimo e ideal pelo consumo dos últimos 90 dias:
+ * mínimo = consumo diário × prazo de entrega + estoque de segurança (metade do consumo no prazo);
+ * ideal = mínimo + 30 dias de consumo. A curva ABC (pelo valor consumido) diz o que contar
+ * com mais frequência no inventário.
+ */
+export async function getStockSuggestions(_req: Request, res: Response) {
+  const [items, consumption] = await Promise.all([
+    prisma.item.findMany({
+      where: { active: true },
+      select: {
+        id: true,
+        price: true,
+        minStock: true,
+        targetStock: true,
+        lastCountedAt: true,
+        supplier: { select: { leadTimeDays: true } },
+      },
+    }),
+    dailyConsumptionByItem(),
+  ])
+
+  const valued = items
+    .map((item) => ({ id: item.id, value: (consumption.get(item.id) ?? 0) * item.price }))
+    .sort((a, b) => b.value - a.value)
+  const totalValue = valued.reduce((sum, row) => sum + row.value, 0)
+  const abcById = new Map<string, AbcClass>()
+  let accumulated = 0
+  for (const row of valued) {
+    const shareBefore = totalValue > 0 ? accumulated / totalValue : 1
+    abcById.set(row.id, row.value === 0 ? 'C' : shareBefore < 0.8 ? 'A' : shareBefore < 0.95 ? 'B' : 'C')
+    accumulated += row.value
+  }
+
+  const suggestions = items.map((item) => {
+    const daily = consumption.get(item.id) ?? 0
+    const leadTimeDays = item.supplier?.leadTimeDays ?? DEFAULT_LEAD_TIME_DAYS
+    const safetyStock = Math.ceil(daily * leadTimeDays * 0.5)
+    const suggestedMin = daily > 0 ? Math.ceil(daily * leadTimeDays) + safetyStock : null
+    return {
+      itemId: item.id,
+      avgDailyConsumption: round(daily),
+      windowDays: CONSUMPTION_WINDOW_DAYS,
+      leadTimeDays,
+      suggestedMin,
+      suggestedTarget: suggestedMin !== null ? suggestedMin + Math.ceil(daily * 30) : null,
+      abcClass: abcById.get(item.id) ?? 'C',
+      lastCountedAt: item.lastCountedAt,
+    }
+  })
+
+  res.json(suggestions)
+}
+
+/** Aplica mínimo e ideal de vários produtos de uma vez (ex.: as sugestões pelo consumo). */
+export async function updateStockLevels(req: Request, res: Response) {
+  const { entries } = req.body as { entries?: { itemId?: string; minStock?: number; targetStock?: number | null }[] }
+  if (!Array.isArray(entries) || entries.length === 0) {
+    res.status(400).json({ error: 'Informe ao menos um produto' })
+    return
+  }
+  for (const entry of entries) {
+    if (!entry.itemId || !Number.isInteger(entry.minStock) || (entry.minStock ?? -1) < 0) {
+      res.status(400).json({ error: 'Cada produto precisa de itemId e minStock (inteiro >= 0)' })
+      return
+    }
+    if (entry.targetStock !== undefined && entry.targetStock !== null && (!Number.isInteger(entry.targetStock) || entry.targetStock < 0)) {
+      res.status(400).json({ error: 'targetStock deve ser um inteiro maior ou igual a 0' })
+      return
+    }
+  }
+
+  const ids = entries.map((entry) => entry.itemId!)
+  const existingCount = await prisma.item.count({ where: { id: { in: ids } } })
+  if (existingCount !== new Set(ids).size) {
+    res.status(400).json({ error: 'Um ou mais produtos informados não existem' })
+    return
+  }
+
+  const updated = await prisma.$transaction(
+    entries.map((entry) =>
+      prisma.item.update({
+        where: { id: entry.itemId! },
+        data: { minStock: entry.minStock!, targetStock: entry.targetStock ?? null },
+        include: ITEM_INCLUDE,
+      }),
+    ),
+  )
+  res.json(updated)
 }

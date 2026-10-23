@@ -7,19 +7,31 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { CheckIcon, CloseIcon, AlertIcon } from '../components/icons'
+import { CheckIcon, CloseIcon, AlertIcon, InfoIcon } from '../components/icons'
 
-type ToastType = 'success' | 'error'
+type ToastType = 'success' | 'error' | 'info'
+
+interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
+interface ToastOptions {
+  /** botão no aviso (ex.: "Desfazer") */
+  action?: ToastAction
+}
 
 interface Toast {
   id: number
   type: ToastType
   message: string
+  action?: ToastAction
 }
 
 interface ToastContextValue {
-  success: (message: string) => void
-  error: (message: string) => void
+  success: (message: string, options?: ToastOptions) => void
+  error: (message: string, options?: ToastOptions) => void
+  info: (message: string, options?: ToastOptions) => void
 }
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined)
@@ -27,18 +39,16 @@ const ToastContext = createContext<ToastContextValue | undefined>(undefined)
 const DURATION: Record<ToastType, number> = {
   success: 4000,
   error: 6000,
+  info: 5000,
 }
 
-const STYLES: Record<ToastType, { wrapper: string; icon: string }> = {
-  success: {
-    wrapper: 'border-novamix-teal/20 bg-white text-gray-900',
-    icon: 'bg-novamix-teal/15 text-novamix-teal',
-  },
-  error: {
-    wrapper: 'border-red-base/20 bg-white text-gray-900',
-    icon: 'bg-red-base/10 text-red-base',
-  },
+const ICON_STYLES: Record<ToastType, string> = {
+  success: 'bg-emerald-500 text-white',
+  error: 'bg-red-base text-white',
+  info: 'bg-blue-600 text-white',
 }
+
+const ICONS = { success: CheckIcon, error: AlertIcon, info: InfoIcon }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -49,45 +59,56 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const push = useCallback(
-    (type: ToastType, message: string) => {
+    (type: ToastType, message: string, options?: ToastOptions) => {
       const id = nextId.current++
-      setToasts((prev) => [...prev, { id, type, message }])
-      window.setTimeout(() => dismiss(id), DURATION[type])
+      setToasts((prev) => [...prev.slice(-2), { id, type, message, action: options?.action }])
+      // com botão de desfazer, o aviso fica um pouco mais na tela
+      window.setTimeout(() => dismiss(id), options?.action ? 7000 : DURATION[type])
     },
     [dismiss],
   )
 
-  const success = useCallback((message: string) => push('success', message), [push])
-  const error = useCallback((message: string) => push('error', message), [push])
-  const value = useMemo(() => ({ success, error }), [success, error])
+  const success = useCallback((message: string, options?: ToastOptions) => push('success', message, options), [push])
+  const error = useCallback((message: string, options?: ToastOptions) => push('error', message, options), [push])
+  const info = useCallback((message: string, options?: ToastOptions) => push('info', message, options), [push])
+  const value = useMemo(() => ({ success, error, info }), [success, error, info])
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-4 top-4 z-50 flex flex-col items-center gap-2 print:hidden sm:inset-x-auto sm:right-4 sm:items-end">
+      {/* no celular aparece embaixo, acima da barra de navegação; no computador, no canto de cima */}
+      <div className="pointer-events-none fixed inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-70 flex flex-col items-center gap-2 print:hidden lg:inset-x-auto lg:top-4 lg:right-4 lg:bottom-auto lg:items-end">
         {toasts.map((toast) => {
-          const style = STYLES[toast.type]
+          const Icon = ICONS[toast.type]
           return (
             <div
               key={toast.id}
               role="status"
-              className={`pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border p-3 shadow-lg ${style.wrapper}`}
+              className="pointer-events-auto flex w-full max-w-sm animate-scale-in items-center gap-3 rounded-2xl bg-gray-900 p-3 pr-2 text-white shadow-float"
             >
-              <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${style.icon}`}>
-                {toast.type === 'success' ? (
-                  <CheckIcon className="h-3.5 w-3.5" />
-                ) : (
-                  <AlertIcon className="h-3.5 w-3.5" />
-                )}
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${ICON_STYLES[toast.type]}`}>
+                <Icon className="h-4 w-4" />
               </span>
-              <p className="flex-1 text-sm font-medium">{toast.message}</p>
+              <p className="flex-1 text-sm font-semibold">{toast.message}</p>
+              {toast.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.action!.onClick()
+                    dismiss(toast.id)
+                  }}
+                  className="press shrink-0 rounded-lg px-2.5 py-1.5 text-sm font-extrabold text-orange-light transition-colors hover:bg-white/10"
+                >
+                  {toast.action.label}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => dismiss(toast.id)}
                 aria-label="Fechar"
-                className="shrink-0 rounded-md p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                className="shrink-0 rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
               >
-                <CloseIcon className="h-3.5 w-3.5" />
+                <CloseIcon className="h-4 w-4" />
               </button>
             </div>
           )

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
 import { useToast } from '../context/ToastContext'
 import type { Supplier } from '../types'
-import { CloseIcon } from './icons'
+import { btnPrimary, btnSecondary, inputClass, labelClass } from '../lib/ui'
+import Sheet from './ui/Sheet'
 
 interface SupplierEditModalProps {
   supplier: Supplier | null
@@ -16,10 +17,11 @@ interface FormState {
   cnpj: string
   phone: string
   email: string
+  leadTimeDays: string
 }
 
 function emptyForm(): FormState {
-  return { name: '', cnpj: '', phone: '', email: '' }
+  return { name: '', cnpj: '', phone: '', email: '', leadTimeDays: '' }
 }
 
 function formatCnpj(value: string): string {
@@ -51,14 +53,24 @@ export default function SupplierEditModal({ supplier, mode = 'edit', onClose, on
       cnpj: supplier.cnpj ? formatCnpj(supplier.cnpj) : '',
       phone: supplier.phone ?? '',
       email: supplier.email ?? '',
+      leadTimeDays: supplier.leadTimeDays !== null ? String(supplier.leadTimeDays) : '',
     })
   }, [supplier, isCreate])
 
   if ((!isCreate && !supplier) || !form) return null
 
+  function set(change: Partial<FormState>) {
+    setForm((prev) => (prev ? { ...prev, ...change } : prev))
+  }
+
   async function handleSave() {
     if (!form!.name.trim()) {
       toast.error('Informe o nome do fornecedor')
+      return
+    }
+    const leadTime = form!.leadTimeDays.trim() === '' ? null : Number(form!.leadTimeDays)
+    if (leadTime !== null && (!Number.isInteger(leadTime) || leadTime < 0 || leadTime > 365)) {
+      toast.error('O prazo de entrega deve ser um número de dias')
       return
     }
 
@@ -69,10 +81,9 @@ export default function SupplierEditModal({ supplier, mode = 'edit', onClose, on
         cnpj: form!.cnpj.trim() || null,
         phone: form!.phone.trim() || null,
         email: form!.email.trim() || null,
+        leadTimeDays: leadTime,
       }
-      const saved = isCreate
-        ? await api.post<Supplier>('/suppliers', payload)
-        : await api.patch<Supplier>(`/suppliers/${supplier!.id}`, payload)
+      const saved = isCreate ? await api.post<Supplier>('/suppliers', payload) : await api.patch<Supplier>(`/suppliers/${supplier!.id}`, payload)
       toast.success(isCreate ? `Fornecedor "${saved.name}" adicionado` : `Fornecedor "${saved.name}" atualizado`)
       onSaved(saved)
     } catch (err) {
@@ -83,96 +94,75 @@ export default function SupplierEditModal({ supplier, mode = 'edit', onClose, on
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 print:hidden">
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl"
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 p-4">
-          <h2 className="text-base font-semibold text-gray-900">
-            {isCreate ? 'Novo fornecedor' : 'Editar fornecedor'}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            aria-label="Fechar"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-400 text-white transition hover:bg-gray-500 disabled:opacity-60"
-          >
-            <CloseIcon className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Nome</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setForm((prev) => (prev ? { ...prev, name: e.target.value } : prev))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              placeholder="Ex: Distribuidora ABC"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">CNPJ</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={form.cnpj}
-              onChange={(e) =>
-                setForm((prev) => (prev ? { ...prev, cnpj: formatCnpj(e.target.value) } : prev))
-              }
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              placeholder="00.000.000/0000-00"
-              maxLength={18}
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Telefone</label>
-            <input
-              type="text"
-              value={form.phone}
-              onChange={(e) => setForm((prev) => (prev ? { ...prev, phone: e.target.value } : prev))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              placeholder="(00) 00000-0000"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((prev) => (prev ? { ...prev, email: e.target.value } : prev))}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-novamix-teal focus:outline-none focus:ring-1 focus:ring-novamix-teal"
-              placeholder="contato@fornecedor.com"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 border-t border-gray-200 p-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="flex h-9 items-center justify-center rounded-lg bg-gray-400 px-4 text-sm font-semibold text-white transition hover:bg-gray-500 disabled:opacity-60"
-          >
+    <Sheet
+      open
+      onClose={onClose}
+      dismissible={false}
+      title={isCreate ? 'Novo fornecedor' : 'Editar fornecedor'}
+      footer={
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose} disabled={saving} className={`${btnSecondary} flex-1`}>
             Cancelar
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="flex h-9 items-center justify-center rounded-lg bg-novamix-teal px-4 text-sm font-semibold text-white transition hover:bg-novamix-teal-dark disabled:opacity-60"
-          >
+          <button type="button" onClick={handleSave} disabled={saving} className={`${btnPrimary} flex-1`}>
             {saving ? 'Salvando...' : isCreate ? 'Adicionar' : 'Salvar'}
           </button>
         </div>
+      }
+    >
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="supplier-name" className={labelClass}>
+            Nome
+          </label>
+          <input id="supplier-name" type="text" value={form.name} onChange={(e) => set({ name: e.target.value })} className={inputClass} placeholder="Ex: Distribuidora ABC" />
+        </div>
+        <div>
+          <label htmlFor="supplier-cnpj" className={labelClass}>
+            CNPJ
+          </label>
+          <input
+            id="supplier-cnpj"
+            type="text"
+            inputMode="numeric"
+            value={form.cnpj}
+            onChange={(e) => set({ cnpj: formatCnpj(e.target.value) })}
+            className={inputClass}
+            placeholder="00.000.000/0000-00"
+            maxLength={18}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="supplier-phone" className={labelClass}>
+              Telefone / WhatsApp
+            </label>
+            <input id="supplier-phone" type="text" value={form.phone} onChange={(e) => set({ phone: e.target.value })} className={inputClass} placeholder="(00) 00000-0000" />
+          </div>
+          <div>
+            <label htmlFor="supplier-lead" className={labelClass}>
+              Prazo de entrega (dias)
+            </label>
+            <input
+              id="supplier-lead"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={form.leadTimeDays}
+              onChange={(e) => set({ leadTimeDays: e.target.value })}
+              className={inputClass}
+              placeholder="7"
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="supplier-email" className={labelClass}>
+            Email
+          </label>
+          <input id="supplier-email" type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} className={inputClass} placeholder="contato@fornecedor.com" />
+        </div>
+        <p className="text-xs text-gray-500">O prazo de entrega entra na sugestão de estoque mínimo pelo consumo.</p>
       </div>
-    </div>
+    </Sheet>
   )
 }

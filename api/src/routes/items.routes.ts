@@ -7,6 +7,8 @@ import {
   deleteItem,
   uploadItemPhoto,
   removeItemPhoto,
+  getStockSuggestions,
+  updateStockLevels,
 } from '../controllers/items.controller'
 
 const router = Router()
@@ -15,6 +17,8 @@ router.use(requireAuth, requireModule)
 
 router.get('/', listItems)
 router.post('/', requireAdmin, createItem)
+router.get('/stock-suggestions', requireAdmin, getStockSuggestions)
+router.post('/stock-levels', requireAdmin, updateStockLevels)
 router.patch('/:id', requireAdmin, updateItem)
 router.delete('/:id', requireAdmin, deleteItem)
 router.post('/:id/photo', requireAdmin, uploadItemPhoto)
