@@ -6,7 +6,8 @@ import { useOrders } from '../context/OrdersContext'
 import { useItems } from '../context/ItemsContext'
 import { useToast } from '../context/ToastContext'
 import { normalizeText } from '../lib/text'
-import { formatCurrency, formatShortDate, plural } from '../lib/format'
+import { formatCurrency, formatDateTime, formatShortDate, orderCode, plural } from '../lib/format'
+import { OPEN_STATUSES, STATUS_LABELS, STATUS_STYLES } from '../lib/orderStatus'
 import { btnPrimary, btnSecondary, cardClass, inputClass, labelClass, sectionTitle } from '../lib/ui'
 import Sheet from '../components/ui/Sheet'
 import QuantityStepper from '../components/ui/QuantityStepper'
@@ -37,7 +38,7 @@ interface ExtraLine {
 
 interface FazerPedidoProps {
   branches: Branch[]
-  /** a central faz pedidos pra qualquer filial, sem a trava de um pedido aberto */
+  /** a central faz pedidos pra qualquer filial, sem o aviso de pedido aberto */
   asAdmin?: boolean
 }
 
@@ -53,7 +54,7 @@ const PENDING_REASON = (pending: PendingItem) =>
 export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { orders, addOrder, updateOrder, openOrderFor, refreshOrders } = useOrders()
+  const { orders, addOrder, updateOrder, refreshOrders } = useOrders()
   const { items, loadingItems } = useItems()
   const toast = useToast()
 
@@ -70,6 +71,8 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
   const [pendingOpen, setPendingOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [confirmBranchOpen, setConfirmBranchOpen] = useState(false)
+  /** filial que já tem pedido aberto: mostra o aviso perguntando se faz outro assim mesmo */
+  const [duplicateFor, setDuplicateFor] = useState<number | null>(null)
   const [done, setDone] = useState<{ order: Order; addedToOpen: boolean } | null>(null)
   const [preview, setPreview] = useState<Item | null>(null)
   const [pending, setPending] = useState<PendingItem[]>([])
@@ -83,9 +86,9 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
     api.get<BranchSummary>(`/branches/${branchId}/summary`).then(setSummary).catch(() => setSummary(null))
   }, [branchId])
 
-  const openOrder = !asAdmin && branchId ? openOrderFor(branchId) : undefined
-  const addingToOpen = openOrder?.status === 'RECEBIDO'
-  const blockedBySeparation = openOrder?.status === 'EM_ANDAMENTO'
+  // pedidos da filial que a central ainda não enviou; o admin não passa pelo aviso
+  const openOrdersFor = (id: number) => (asAdmin ? [] : orders.filter((o) => o.branchId === id && OPEN_STATUSES.includes(o.status)))
+  const currentOpenOrders = branchId ? openOrdersFor(branchId) : []
   const lastOrder = branchId ? orders.find((o) => o.branchId === branchId && o.status !== 'CANCELADO') : undefined
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
 
@@ -169,7 +172,17 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
       setConfirmBranchOpen(true)
       return
     }
-    submit(branchId!)
+    proceedTo(branchId!)
+  }
+
+  // filial definida: se ela já tem pedido aberto, pergunta antes se a pessoa quer fazer outro
+  function proceedTo(targetBranchId: number) {
+    if (openOrdersFor(targetBranchId).length > 0) {
+      setConfirmBranchOpen(false)
+      setDuplicateFor(targetBranchId)
+      return
+    }
+    submit(targetBranchId)
   }
 
   function validateCart() {
@@ -184,32 +197,31 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
     return true
   }
 
-  async function submit(targetBranchId: number) {
+  /**
+   * Envia para a filial escolhida. Sem `appendTo` cria um pedido novo (com `allowDuplicate`
+   * quando a pessoa já confirmou o aviso); com `appendTo` junta os itens ao pedido em Recebido.
+   */
+  async function submit(targetBranchId: number, options: { allowDuplicate?: boolean; appendTo?: Order } = {}) {
     if (!validateCart()) return
+    const { allowDuplicate = false, appendTo } = options
     const itemsPayload = cartLines.map(([itemId, quantity]) => ({ itemId, quantity }))
     const extrasPayload = validExtras.map((extra) => ({ name: extra.name.trim(), quantity: extra.quantity }))
     // as pendências na sacola são da filial que estava selecionada; se trocou, elas continuam pendentes lá
     const switchedBranch = targetBranchId !== branchId
-    const targetOpenOrder = !asAdmin ? openOrderFor(targetBranchId) : undefined
-    const targetAddingToOpen = targetOpenOrder?.status === 'RECEBIDO'
-    if (targetOpenOrder?.status === 'EM_ANDAMENTO') {
-      toast.error(`A central já está separando o pedido da filial ${targetOpenOrder.branch.name}`)
-      return
-    }
     if (switchedBranch) setBranchId(targetBranchId)
     const resolvePendingIds = switchedBranch ? [] : pendingIds
 
     setSubmitting(true)
     try {
       let saved: Order
-      if (targetAddingToOpen && targetOpenOrder) {
+      if (appendTo) {
         // junta com o que já está no pedido aberto
-        const merged = new Map(targetOpenOrder.items.map((oi) => [oi.itemId, oi.requestedQuantity]))
+        const merged = new Map(appendTo.items.map((oi) => [oi.itemId, oi.requestedQuantity]))
         for (const line of itemsPayload) merged.set(line.itemId, (merged.get(line.itemId) ?? 0) + line.quantity)
-        saved = await api.patch<Order>(`/orders/${targetOpenOrder.id}/edit`, {
+        saved = await api.patch<Order>(`/orders/${appendTo.id}/edit`, {
           items: [...merged.entries()].filter(([, q]) => q > 0).map(([itemId, quantity]) => ({ itemId, quantity })),
-          extras: [...targetOpenOrder.extraItems.map((e) => ({ name: e.name, quantity: e.requestedQuantity })), ...extrasPayload],
-          notes: notes.trim() ? [targetOpenOrder.notes, notes.trim()].filter(Boolean).join('\n') : undefined,
+          extras: [...appendTo.extraItems.map((e) => ({ name: e.name, quantity: e.requestedQuantity })), ...extrasPayload],
+          notes: notes.trim() ? [appendTo.notes, notes.trim()].filter(Boolean).join('\n') : undefined,
           resolvePendingIds,
         })
         updateOrder(saved)
@@ -220,15 +232,25 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
           extras: extrasPayload,
           notes: notes.trim() || undefined,
           resolvePendingIds,
+          allowDuplicate: allowDuplicate || undefined,
         })
         addOrder(saved)
       }
       resetCart()
       setCartOpen(false)
       setConfirmBranchOpen(false)
-      setDone({ order: saved, addedToOpen: targetAddingToOpen })
+      setDuplicateFor(null)
+      setDone({ order: saved, addedToOpen: Boolean(appendTo) })
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) refreshOrders()
+      if (err instanceof ApiError && err.status === 409) {
+        // outra pessoa da filial pediu enquanto esta montava a sacola (ou o pedido aberto mudou de etapa)
+        await refreshOrders()
+        setConfirmBranchOpen(false)
+        if (err.data?.openOrderId) {
+          setDuplicateFor(targetBranchId)
+          return
+        }
+      }
       toast.error(err instanceof ApiError ? err.message : 'Não foi possível enviar o pedido')
     } finally {
       setSubmitting(false)
@@ -282,7 +304,7 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900">{asAdmin ? 'Pedido para uma filial' : 'Fazer pedido'}</h1>
           <p className="text-sm text-gray-500">
-            {asAdmin ? 'A central pede em nome da filial, sem a trava de um pedido por vez.' : 'Escolha os itens e envie para a central.'}
+            {asAdmin ? 'A central pede em nome da filial, sem o aviso de pedido em andamento.' : 'Escolha os itens e envie para a central.'}
           </p>
         </div>
       </div>
@@ -307,28 +329,22 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
         </div>
       )}
 
-      {blockedBySeparation && openOrder ? (
-        <div className={`${cardClass} p-5`}>
-          <EmptyState
-            icon={PackageSearchIcon}
-            title="A central está separando o pedido"
-            description={`O pedido da filial ${openOrder.branch.name} já está em separação. Você poderá fazer outro assim que ele for enviado.`}
-            action={
-              <button type="button" onClick={() => navigate('/acompanhar', { state: { focusOrderId: openOrder.id } })} className={btnPrimary}>
-                Acompanhar pedido <ArrowRightIcon className="h-4 w-4" />
-              </button>
-            }
-          />
-        </div>
-      ) : (
         <>
-          {addingToOpen && openOrder && (
-            <div className="mb-4 flex items-start gap-3 rounded-2xl bg-blue-50 p-3.5 ring-1 ring-blue-100">
-              <ClipboardCheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-              <p className="text-sm text-blue-900">
-                A filial <strong>{openOrder.branch.name}</strong> já tem um pedido aberto. O que você escolher agora{' '}
-                <strong>entra nele</strong>, enquanto a central não começa a separar.
+          {currentOpenOrders.length > 0 && (
+            <div className="mb-4 flex items-start gap-3 rounded-2xl bg-amber-50 p-3.5 ring-1 ring-amber-200">
+              <PackageSearchIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <p className="flex-1 text-sm text-amber-900">
+                A filial <strong>{currentOpenOrders[0].branch.name}</strong> já tem{' '}
+                {currentOpenOrders.length === 1 ? 'um pedido aberto' : `${currentOpenOrders.length} pedidos abertos`}. Você pode fazer outro
+                mesmo assim; antes de enviar, vamos confirmar com você.
               </p>
+              <button
+                type="button"
+                onClick={() => navigate('/acompanhar', { state: { focusOrderId: currentOpenOrders[0].id } })}
+                className="shrink-0 text-sm font-bold text-amber-800 underline-offset-2 hover:underline"
+              >
+                Ver
+              </button>
             </div>
           )}
 
@@ -519,7 +535,6 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
             </div>
           )}
         </>
-      )}
 
       {/* sacola */}
       <Sheet
@@ -536,7 +551,7 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
               </div>
             )}
             <button type="button" onClick={requestSubmit} disabled={submitting || cartCount === 0} className={`${btnPrimary} w-full py-3.5 text-base`}>
-              {submitting ? 'Enviando...' : addingToOpen ? `Adicionar ao pedido aberto · ${plural(cartCount, 'item', 'itens')}` : `Enviar pedido · ${plural(cartCount, 'item', 'itens')}`}
+              {submitting ? 'Enviando...' : `Enviar pedido · ${plural(cartCount, 'item', 'itens')}`}
             </button>
           </div>
         }
@@ -726,9 +741,19 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
         branches={branches}
         itemCount={cartCount}
         submitting={submitting}
-        blockedBranchIds={asAdmin ? [] : branches.filter((b) => openOrderFor(b.id)?.status === 'EM_ANDAMENTO').map((b) => b.id)}
-        onPick={(id) => submit(id)}
+        openOrderCounts={Object.fromEntries(branches.map((b) => [b.id, openOrdersFor(b.id).length]))}
+        onPick={proceedTo}
         onCancel={() => setConfirmBranchOpen(false)}
+      />
+
+      <DuplicateOrderDialog
+        open={duplicateFor !== null}
+        branchName={branches.find((b) => b.id === duplicateFor)?.name ?? ''}
+        openOrders={duplicateFor !== null ? openOrdersFor(duplicateFor) : []}
+        submitting={submitting}
+        onCreateAnyway={() => duplicateFor !== null && submit(duplicateFor, { allowDuplicate: true })}
+        onAppend={(order) => duplicateFor !== null && submit(duplicateFor, { appendTo: order })}
+        onCancel={() => setDuplicateFor(null)}
       />
 
       <PhotoLightbox src={preview?.photoPath ? assetUrl(preview.photoPath) : null} alt={preview?.name ?? ''} onClose={() => setPreview(null)} />
@@ -745,7 +770,7 @@ function BranchConfirmDialog({
   branches,
   itemCount,
   submitting,
-  blockedBranchIds,
+  openOrderCounts,
   onPick,
   onCancel,
 }: {
@@ -753,7 +778,7 @@ function BranchConfirmDialog({
   branches: Branch[]
   itemCount: number
   submitting: boolean
-  blockedBranchIds: number[]
+  openOrderCounts: Record<number, number>
   onPick: (branchId: number) => void
   onCancel: () => void
 }) {
@@ -796,13 +821,13 @@ function BranchConfirmDialog({
 
         <div className="mt-5 -mx-1 flex-1 space-y-2.5 overflow-y-auto px-1 py-1">
           {branches.map((branch) => {
-            const blocked = blockedBranchIds.includes(branch.id)
+            const openCount = openOrderCounts[branch.id] ?? 0
             const sending = submitting && pickedId === branch.id
             return (
               <button
                 key={branch.id}
                 type="button"
-                disabled={submitting || blocked}
+                disabled={submitting}
                 onClick={() => {
                   setPickedId(branch.id)
                   onPick(branch.id)
@@ -812,7 +837,11 @@ function BranchConfirmDialog({
                 <BuildingIcon className="h-7 w-7 shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xl font-extrabold tracking-wide uppercase">{branch.name}</span>
-                  {blocked && <span className="block text-xs font-semibold">Pedido em separação na central</span>}
+                  {openCount > 0 && (
+                    <span className="block text-xs font-semibold">
+                      Já tem {openCount === 1 ? 'um pedido aberto' : `${openCount} pedidos abertos`}
+                    </span>
+                  )}
                 </span>
                 <span className="shrink-0 text-sm font-bold">{sending ? 'Enviando...' : 'Enviar'}</span>
               </button>
@@ -823,6 +852,117 @@ function BranchConfirmDialog({
         <button type="button" onClick={onCancel} disabled={submitting} className={`${btnSecondary} mt-4 w-full py-3`}>
           Voltar para a sacola
         </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * A filial já tem pedido que a central ainda não enviou (de outra pessoa ou da mesma):
+ * mostra qual é e pergunta se quer fazer outro assim mesmo. Se o pedido ainda está em
+ * Recebido, também dá pra só juntar os itens a ele.
+ */
+function DuplicateOrderDialog({
+  open,
+  branchName,
+  openOrders,
+  submitting,
+  onCreateAnyway,
+  onAppend,
+  onCancel,
+}: {
+  open: boolean
+  branchName: string
+  openOrders: Order[]
+  submitting: boolean
+  onCreateAnyway: () => void
+  onAppend: (order: Order) => void
+  onCancel: () => void
+}) {
+  const [action, setAction] = useState<'new' | 'append' | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setAction(null)
+      return
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !submitting) onCancel()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, submitting, onCancel])
+
+  if (!open) return null
+
+  // o mais recente que a central ainda não começou a separar
+  const appendable = openOrders.find((o) => o.status === 'RECEBIDO')
+
+  return (
+    <div className="fixed inset-0 z-60 flex animate-fade-in items-center justify-center bg-black/60 p-4 backdrop-blur-sm print:hidden">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="duplicate-order-title"
+        className="flex max-h-[90dvh] w-full max-w-md animate-scale-in flex-col rounded-3xl bg-white p-6 shadow-float ring-4 ring-amber-400"
+      >
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+            <AlertIcon className="h-9 w-9" />
+          </span>
+          <p className="text-sm font-extrabold tracking-widest text-amber-600 uppercase">Atenção</p>
+          <h2 id="duplicate-order-title" className="mt-1 text-2xl leading-tight font-extrabold text-gray-900">
+            A filial <span className="uppercase">{branchName}</span> já tem {openOrders.length === 1 ? 'um pedido' : `${openOrders.length} pedidos`} em
+            andamento
+          </h2>
+        </div>
+
+        <ul className="mt-4 -mx-1 flex-1 space-y-2 overflow-y-auto px-1 py-1">
+          {openOrders.map((order) => (
+            <li key={order.id} className="rounded-2xl bg-gray-50 p-3 ring-1 ring-gray-200">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-extrabold text-gray-900">{orderCode(order)}</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_STYLES[order.status]}`}>{STATUS_LABELS[order.status]}</span>
+              </div>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Feito por <strong className="text-gray-700">{order.requestedBy.name}</strong> · {formatDateTime(order.createdAt)} ·{' '}
+                {plural(order.items.length + order.extraItems.length, 'item', 'itens')}
+              </p>
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-4 text-center text-base font-bold text-gray-900">Deseja fazer outro pedido assim mesmo?</p>
+
+        <div className="mt-4 space-y-2">
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={() => {
+              setAction('new')
+              onCreateAnyway()
+            }}
+            className={`${btnPrimary} w-full py-3.5 text-base`}
+          >
+            {submitting && action === 'new' ? 'Enviando...' : 'Sim, fazer outro pedido'}
+          </button>
+          {appendable && (
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => {
+                setAction('append')
+                onAppend(appendable)
+              }}
+              className={`${btnSecondary} w-full py-3`}
+            >
+              {submitting && action === 'append' ? 'Adicionando...' : `Não, adicionar os itens ao ${orderCode(appendable)}`}
+            </button>
+          )}
+          <button type="button" onClick={onCancel} disabled={submitting} className={`${btnSecondary} w-full py-3`}>
+            Cancelar
+          </button>
+        </div>
       </div>
     </div>
   )

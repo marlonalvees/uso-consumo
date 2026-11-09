@@ -14,8 +14,8 @@ const ORDER_INCLUDE = {
   extraItems: { orderBy: { id: 'asc' } },
 } as const satisfies Prisma.OrderInclude
 
-// "Aberto" = a central ainda não enviou. Enquanto a filial tem um pedido aberto, ela adiciona
-// itens a ele (em Recebido) em vez de criar outro.
+// "Aberto" = a central ainda não enviou. Se a filial já tem um pedido aberto, o supervisor é
+// avisado e só cria outro confirmando (allowDuplicate); ou adiciona os itens ao que está em Recebido.
 const OPEN_STATUSES: OrderStatus[] = [OrderStatus.RECEBIDO, OrderStatus.EM_ANDAMENTO]
 
 const ADMIN_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus[]>> = {
@@ -117,19 +117,16 @@ async function resolvePending(tx: Prisma.TransactionClient, branchId: number, id
   })
 }
 
-async function findOpenOrder(branchId: number, excludeOrderId?: string) {
+async function findOpenOrder(branchId: number) {
   return prisma.order.findFirst({
-    where: { branchId, status: { in: OPEN_STATUSES }, ...(excludeOrderId ? { id: { not: excludeOrderId } } : {}) },
+    where: { branchId, status: { in: OPEN_STATUSES } },
     select: { id: true, status: true },
   })
 }
 
 function openOrderConflict(res: Response, open: { id: string; status: OrderStatus }) {
   res.status(409).json({
-    error:
-      open.status === OrderStatus.RECEBIDO
-        ? 'A filial já tem um pedido aberto. Adicione os itens a ele.'
-        : 'A central já está separando o pedido aberto da filial. Dá pra fazer outro quando ele for enviado.',
+    error: 'A filial já tem um pedido aberto. Confirme se quer fazer outro pedido assim mesmo.',
     openOrderId: open.id,
     openOrderStatus: open.status,
   })
@@ -142,6 +139,8 @@ export async function createOrder(req: Request, res: Response) {
     extras?: unknown
     notes?: string
     resolvePendingIds?: unknown
+    /** o supervisor viu o aviso de que a filial já tem pedido aberto e quer fazer outro */
+    allowDuplicate?: boolean
   }
   const branchId = body.branchId
 
@@ -161,8 +160,8 @@ export async function createOrder(req: Request, res: Response) {
       res.status(403).json({ error: 'Filial informada não está liberada para este usuário' })
       return
     }
-    // o admin faz pedidos pra várias filiais e não tem a trava
-    const open = await findOpenOrder(branchId as number)
+    // o admin faz pedidos pra várias filiais e não passa pelo aviso
+    const open = body.allowDuplicate === true ? null : await findOpenOrder(branchId as number)
     if (open) {
       openOrderConflict(res, open)
       return
@@ -629,13 +628,7 @@ export async function updateOwnOrder(req: Request, res: Response) {
       res.status(403).json({ error: 'Filial informada não está liberada para este usuário' })
       return
     }
-    if (!isAdmin(req)) {
-      const open = await findOpenOrder(body.branchId, id)
-      if (open) {
-        openOrderConflict(res, open)
-        return
-      }
-    }
+    // corrigir a filial de um pedido é permitido mesmo que a outra já tenha pedido aberto
     nextBranchId = body.branchId
   }
 

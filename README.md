@@ -115,10 +115,13 @@ No banco, "Em separação" continua com o valor `EM_ANDAMENTO`.
 - **Cancelado**: o supervisor cancela enquanto o pedido está em Recebido; a
   central cancela com motivo até antes do envio.
 
-Cada **filial** só pode ter um pedido aberto (Recebido ou Em separação) por
-vez. Enquanto ele está em Recebido, qualquer supervisor da filial adiciona
-itens a ele em vez de abrir outro; depois que a central envia, a filial já
-pode fazer o próximo pedido. O admin não tem essa trava.
+Se a **filial** já tem um pedido aberto (Recebido ou Em separação), quem for
+pedir para ela vê um aviso com o pedido existente e escolhe: fazer outro
+pedido assim mesmo ou, se ele ainda está em Recebido, adicionar os itens a
+ele. O admin não passa por esse aviso.
+
+Quem pede para mais de uma filial confirma o destino num alerta antes de
+enviar, sem filial pré-marcada.
 
 **Pendências**: o que a central cortou de um pedido enviado e o que faltou ou
 chegou avariado no recebimento aparece pra filial como pendência no próximo
