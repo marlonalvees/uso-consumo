@@ -17,6 +17,7 @@ import {
   AlertIcon,
   ArrowRightIcon,
   BagIcon,
+  BuildingIcon,
   ClipboardCheckIcon,
   CloseIcon,
   ImageIcon,
@@ -68,6 +69,7 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
   const [parsOpen, setParsOpen] = useState(false)
   const [pendingOpen, setPendingOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [confirmBranchOpen, setConfirmBranchOpen] = useState(false)
   const [done, setDone] = useState<{ order: Order; addedToOpen: boolean } | null>(null)
   const [preview, setPreview] = useState<Item | null>(null)
   const [pending, setPending] = useState<PendingItem[]>([])
@@ -157,45 +159,74 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
     }
   }
 
-  async function submit() {
+  // quem pede para mais de uma filial confirma o destino num alerta no meio da tela,
+  // porque já aconteceu de o pedido sair para a filial errada
+  const mustConfirmBranch = asAdmin || branches.length > 1
+
+  function requestSubmit() {
+    if (!validateCart()) return
+    if (mustConfirmBranch) {
+      setConfirmBranchOpen(true)
+      return
+    }
+    submit(branchId!)
+  }
+
+  function validateCart() {
     if (!branchId) {
       toast.error('Escolha para qual filial é o pedido')
-      return
+      return false
     }
+    if (cartLines.length === 0 && validExtras.length === 0) {
+      toast.error('Adicione ao menos um item')
+      return false
+    }
+    return true
+  }
+
+  async function submit(targetBranchId: number) {
+    if (!validateCart()) return
     const itemsPayload = cartLines.map(([itemId, quantity]) => ({ itemId, quantity }))
     const extrasPayload = validExtras.map((extra) => ({ name: extra.name.trim(), quantity: extra.quantity }))
-    if (itemsPayload.length === 0 && extrasPayload.length === 0) {
-      toast.error('Adicione ao menos um item')
+    // as pendências na sacola são da filial que estava selecionada; se trocou, elas continuam pendentes lá
+    const switchedBranch = targetBranchId !== branchId
+    const targetOpenOrder = !asAdmin ? openOrderFor(targetBranchId) : undefined
+    const targetAddingToOpen = targetOpenOrder?.status === 'RECEBIDO'
+    if (targetOpenOrder?.status === 'EM_ANDAMENTO') {
+      toast.error(`A central já está separando o pedido da filial ${targetOpenOrder.branch.name}`)
       return
     }
+    if (switchedBranch) setBranchId(targetBranchId)
+    const resolvePendingIds = switchedBranch ? [] : pendingIds
 
     setSubmitting(true)
     try {
       let saved: Order
-      if (addingToOpen && openOrder) {
+      if (targetAddingToOpen && targetOpenOrder) {
         // junta com o que já está no pedido aberto
-        const merged = new Map(openOrder.items.map((oi) => [oi.itemId, oi.requestedQuantity]))
+        const merged = new Map(targetOpenOrder.items.map((oi) => [oi.itemId, oi.requestedQuantity]))
         for (const line of itemsPayload) merged.set(line.itemId, (merged.get(line.itemId) ?? 0) + line.quantity)
-        saved = await api.patch<Order>(`/orders/${openOrder.id}/edit`, {
+        saved = await api.patch<Order>(`/orders/${targetOpenOrder.id}/edit`, {
           items: [...merged.entries()].filter(([, q]) => q > 0).map(([itemId, quantity]) => ({ itemId, quantity })),
-          extras: [...openOrder.extraItems.map((e) => ({ name: e.name, quantity: e.requestedQuantity })), ...extrasPayload],
-          notes: notes.trim() ? [openOrder.notes, notes.trim()].filter(Boolean).join('\n') : undefined,
-          resolvePendingIds: pendingIds,
+          extras: [...targetOpenOrder.extraItems.map((e) => ({ name: e.name, quantity: e.requestedQuantity })), ...extrasPayload],
+          notes: notes.trim() ? [targetOpenOrder.notes, notes.trim()].filter(Boolean).join('\n') : undefined,
+          resolvePendingIds,
         })
         updateOrder(saved)
       } else {
         saved = await api.post<Order>('/orders', {
-          branchId,
+          branchId: targetBranchId,
           items: itemsPayload,
           extras: extrasPayload,
           notes: notes.trim() || undefined,
-          resolvePendingIds: pendingIds,
+          resolvePendingIds,
         })
         addOrder(saved)
       }
       resetCart()
       setCartOpen(false)
-      setDone({ order: saved, addedToOpen: Boolean(addingToOpen) })
+      setConfirmBranchOpen(false)
+      setDone({ order: saved, addedToOpen: targetAddingToOpen })
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) refreshOrders()
       toast.error(err instanceof ApiError ? err.message : 'Não foi possível enviar o pedido')
@@ -504,7 +535,7 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
                 <span className="font-extrabold text-gray-900 tabular-nums">{formatCurrency(cartValue)}</span>
               </div>
             )}
-            <button type="button" onClick={submit} disabled={submitting || cartCount === 0} className={`${btnPrimary} w-full py-3.5 text-base`}>
+            <button type="button" onClick={requestSubmit} disabled={submitting || cartCount === 0} className={`${btnPrimary} w-full py-3.5 text-base`}>
               {submitting ? 'Enviando...' : addingToOpen ? `Adicionar ao pedido aberto · ${plural(cartCount, 'item', 'itens')}` : `Enviar pedido · ${plural(cartCount, 'item', 'itens')}`}
             </button>
           </div>
@@ -666,6 +697,9 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
               />
             </svg>
             <h2 className="text-xl font-extrabold text-gray-900">{done.addedToOpen ? 'Itens adicionados!' : 'Pedido enviado!'}</h2>
+            <p className="mt-2 rounded-full bg-orange-base/10 px-4 py-1.5 text-sm font-extrabold tracking-wide text-orange-base uppercase">
+              Filial {done.order.branch.name}
+            </p>
             <p className="mt-1 text-sm text-gray-500">
               {asAdmin
                 ? `Pedido criado para a filial ${done.order.branch.name}.`
@@ -687,7 +721,109 @@ export default function FazerPedido({ branches, asAdmin = false }: FazerPedidoPr
         )}
       </Sheet>
 
+      <BranchConfirmDialog
+        open={confirmBranchOpen}
+        branches={branches}
+        itemCount={cartCount}
+        submitting={submitting}
+        blockedBranchIds={asAdmin ? [] : branches.filter((b) => openOrderFor(b.id)?.status === 'EM_ANDAMENTO').map((b) => b.id)}
+        onPick={(id) => submit(id)}
+        onCancel={() => setConfirmBranchOpen(false)}
+      />
+
       <PhotoLightbox src={preview?.photoPath ? assetUrl(preview.photoPath) : null} alt={preview?.name ?? ''} onClose={() => setPreview(null)} />
+    </div>
+  )
+}
+
+/**
+ * Alerta grande no meio da tela: a pessoa precisa tocar no nome da filial para enviar.
+ * Nenhuma vem marcada, pra ninguém confirmar no automático a que estava selecionada.
+ */
+function BranchConfirmDialog({
+  open,
+  branches,
+  itemCount,
+  submitting,
+  blockedBranchIds,
+  onPick,
+  onCancel,
+}: {
+  open: boolean
+  branches: Branch[]
+  itemCount: number
+  submitting: boolean
+  blockedBranchIds: number[]
+  onPick: (branchId: number) => void
+  onCancel: () => void
+}) {
+  const [pickedId, setPickedId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setPickedId(null)
+      return
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !submitting) onCancel()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, submitting, onCancel])
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-60 flex animate-fade-in items-center justify-center bg-black/60 p-4 backdrop-blur-sm print:hidden">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="branch-confirm-title"
+        className="flex max-h-[90dvh] w-full max-w-md animate-scale-in flex-col rounded-3xl bg-white p-6 shadow-float ring-4 ring-amber-400"
+      >
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+            <AlertIcon className="h-9 w-9" />
+          </span>
+          <p className="text-sm font-extrabold tracking-widest text-amber-600 uppercase">Atenção</p>
+          <h2 id="branch-confirm-title" className="mt-1 text-2xl leading-tight font-extrabold text-gray-900">
+            Para qual filial é este pedido?
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Toque na filial que vai <strong>receber</strong> os {plural(itemCount, 'item', 'itens')}. Confira com calma: o pedido vai direto para ela.
+          </p>
+        </div>
+
+        <div className="mt-5 -mx-1 flex-1 space-y-2.5 overflow-y-auto px-1 py-1">
+          {branches.map((branch) => {
+            const blocked = blockedBranchIds.includes(branch.id)
+            const sending = submitting && pickedId === branch.id
+            return (
+              <button
+                key={branch.id}
+                type="button"
+                disabled={submitting || blocked}
+                onClick={() => {
+                  setPickedId(branch.id)
+                  onPick(branch.id)
+                }}
+                className="press flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-4 text-left ring-2 ring-gray-200 transition-colors hover:bg-orange-base hover:text-white hover:ring-orange-base disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-inherit disabled:hover:ring-gray-200"
+              >
+                <BuildingIcon className="h-7 w-7 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xl font-extrabold tracking-wide uppercase">{branch.name}</span>
+                  {blocked && <span className="block text-xs font-semibold">Pedido em separação na central</span>}
+                </span>
+                <span className="shrink-0 text-sm font-bold">{sending ? 'Enviando...' : 'Enviar'}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <button type="button" onClick={onCancel} disabled={submitting} className={`${btnSecondary} mt-4 w-full py-3`}>
+          Voltar para a sacola
+        </button>
+      </div>
     </div>
   )
 }
